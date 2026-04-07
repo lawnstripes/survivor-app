@@ -1,0 +1,62 @@
+package view
+
+import "survivor-app/internal/models"
+
+templ UserProfile(profile models.UserProfile) {
+    <div class="max-w-4xl mx-auto mt-6">
+        <div class="mb-6">
+            <a
+                class="btn btn-sm btn-ghost"
+                href={ templ.URL(profile.BackPath) }
+                hx-get={ templ.URL(profile.BackPath) }
+                hx-target="main"
+                hx-push-url="true">
+                &larr; Back to Timeline
+            </a>
+        </div>
+
+        <div class="flex flex-col items-center text-center gap-4 mb-12">
+            <h1 class="text-4xl font-bold">{ profile.User.Name }</h1>
+            <figure class="w-full max-w-md aspect-[3/4] md:aspect-square bg-base-200 rounded-xl overflow-hidden shadow-lg">
+                <img src={ profile.User.ImageURL } alt={ profile.User.Name } class="w-full h-full object-cover object-top" />
+            </figure>
+            <p class="text-xl opacity-75">Draft History</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            for _, record := range profile.Seasons {
+                <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex items-center gap-4">
+                                <div class="w-32">
+                                    <img src={ record.Season.LogoURL } alt={ record.Season.Title } class="object-contain drop-shadow-md" />
+                                </div>
+                                <div>
+                                    <h2 class="card-title text-2xl">{ record.Season.Title }</h2>
+                                    <p class="text-sm opacity-75">{ record.Season.TitleLong }</p>
+                                </div>
+                            </div>
+                            if record.HasWinner {
+                                <div class="text-4xl drop-shadow-lg tooltip" data-tip="Drafted the Winner!">👑</div>
+                            }
+                        </div>
+                        <div class="divider mt-0 mb-2"></div>
+                        <div class="flex flex-wrap gap-4">
+                            for _, c := range record.Contestants {
+                                <div class="flex flex-col items-center gap-1 w-16">
+                                    <div class="avatar tooltip" data-tip={ c.Name }>
+                                        <div class={ "w-12 rounded-full ring ring-offset-base-100 ring-offset-1", templ.KV("ring-warning", c.IsWinner), templ.KV("ring-error grayscale", c.EliminationEpisode > 0), templ.KV("ring-primary", c.EliminationEpisode <= 0 && !c.IsWinner) }>
+                                            <img src={ c.ImageURL } alt={ c.Name } class="object-cover object-top" />
+                                        </div>
+                                    </div>
+                                    <span class="text-xs text-center truncate w-full">{ c.KnownBy }</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}

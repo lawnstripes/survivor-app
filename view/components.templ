@@ -1,0 +1,45 @@
+package view
+
+import (
+    "strconv"
+    "fmt"
+    "survivor-app/internal/models"
+)
+
+templ ContestantGrid(contestants []models.Contestant) {
+    <div class="flex flex-col gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            for _, c := range contestants {
+                @ContestantCard(c)
+            }
+        </div>
+    </div>
+}
+
+templ ContestantCard(c models.Contestant) {
+    <div id={ "contestant-" + strconv.Itoa(c.ID) } class="card bg-base-100 shadow-xl border border-base-content/10 overflow-hidden">
+        <figure class="w-full aspect-[3/4] md:aspect-square bg-base-200">
+            <img src={ c.ImageURL } alt={ c.Name } class="w-full h-full object-cover object-top" />
+        </figure>
+        <div class="card-body items-center text-center">
+            <h2 class="card-title">{ c.Name }</h2>
+            
+            if c.OwnerID != nil {
+                <div class="badge badge-secondary p-4 mt-2">
+                    Drafted by { fmt.Sprint(*c.OwnerID) }
+                </div>
+            } else {
+                <div class="card-actions">
+                    <button 
+                        hx-post={ "/draft/" + strconv.Itoa(c.ID) } 
+                        hx-target={ "closest .card" }
+                        hx-swap="outerHTML"
+                        class="btn btn-primary btn-sm">
+                        Draft
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+}
+

@@ -1,0 +1,390 @@
+package view
+
+import "survivor-app/internal/models"
+import "fmt"
+ 
+templ AdminNav(currentPath string) {
+	<div class="tabs tabs-boxed mb-6">
+		<a class={ "tab", templ.KV("tab-active", currentPath == "/admin/seasons") } href="/admin/seasons" hx-get="/admin/seasons" hx-target="main" hx-push-url="true">Seasons</a>
+		<a class={ "tab", templ.KV("tab-active", currentPath == "/admin/settings") } href="/admin/settings" hx-get="/admin/settings" hx-target="main" hx-push-url="true">Settings</a>
+	</div>
+}
+
+templ AdminSeasons(seasons []models.Season, csrfToken string, currentPath string) {
+	@AdminNav(currentPath)
+	<div class="mb-8">
+		<h1 class="text-3xl font-bold">Manage Seasons</h1>
+		<p class="text-base-content/70">Add, edit, or remove seasons from the application.</p>
+	</div>
+	<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+		<div class="lg:col-span-2">
+			<h2 class="text-xl font-bold mb-4">Existing Seasons</h2>
+			<div id="seasons-table" class="overflow-x-auto">
+				@AdminSeasonsTable(seasons)
+			</div>
+		</div>
+		<div>
+			<h2 class="text-xl font-bold mb-4">Add New Season</h2>
+			@AdminSeasonForm(csrfToken)
+		</div>
+	</div>
+}
+
+templ AdminSeasonsTable(seasons []models.Season) {
+	<table class="table table-zebra bg-base-100 shadow">
+		<thead>
+			<tr>
+				<th>Season</th>
+				<th>Title</th>
+				<th>Year</th>
+				<th>Episodes</th>
+                <th>Logo</th>
+				<th></th>
+			</tr>
+		</thead>
+		<tbody>
+			for _, s := range seasons {
+				@AdminSeasonRow(s)
+			}
+		</tbody>
+	</table>
+}
+
+templ AdminSeasonRow(season models.Season) {
+	<tr id={ fmt.Sprintf("season-row-%d", season.ID) }>
+		<td class="font-bold">{ fmt.Sprint(season.Season) }</td>
+		<td>{ season.Title }</td>
+		<td>{ fmt.Sprint(season.Year) }</td>
+		<td>{ fmt.Sprint(season.Episodes) }</td>
+		<td>
+			<div class="w-20">
+				if season.LogoURL != "" {
+					<img src={ season.LogoURL } alt={ season.TitleLong } class="object-contain" />
+				}
+			</div>
+		</td>
+		<td class="text-right">
+			<div class="join">
+				<button
+					hx-get={ fmt.Sprintf("/admin/seasons/%d/contestants", season.ID) }
+					hx-target="main"
+					hx-push-url="true"
+					class="btn btn-xs btn-ghost join-item">Contestants</button>
+				<button
+					hx-get={ fmt.Sprintf("/admin/seasons/%d/edit", season.ID) }
+					hx-target={ fmt.Sprintf("#season-row-%d", season.ID) }
+					hx-swap="outerHTML"
+					class="btn btn-xs btn-ghost join-item">
+					Edit
+				</button>
+			</div>
+		</td>
+	</tr>
+}
+
+templ AdminSeasonEditForm(season models.Season, csrfToken string) {
+	<tr id={ fmt.Sprintf("season-row-%d", season.ID) }>
+		<td colspan="6">
+			<form
+				hx-put={ fmt.Sprintf("/admin/seasons/%d", season.ID) }
+				hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
+				hx-target={ fmt.Sprintf("#season-row-%d", season.ID) }
+				hx-swap="outerHTML"
+				class="flex items-center gap-2"
+			>
+				<input type="number" name="season" value={ fmt.Sprint(season.Season) } class="input input-bordered input-sm w-20" placeholder="Season"/>
+				<input type="text" name="title" value={ season.Title } class="input input-bordered input-sm w-full" placeholder="Title"/>
+				<input type="number" name="year" value={ fmt.Sprint(season.Year) } class="input input-bordered input-sm w-24" placeholder="Year"/>
+				<input type="number" name="episodes" value={ fmt.Sprint(season.Episodes) } class="input input-bordered input-sm w-24" placeholder="Episodes"/>
+				<input type="text" name="logo_url" value={ season.LogoURL } class="input input-bordered input-sm w-full" placeholder="Logo URL"/>
+				<div class="join">
+					<button type="submit" class="btn btn-xs btn-primary join-item">Save</button>
+					<button
+						type="button"
+						hx-get={ fmt.Sprintf("/admin/seasons/%d", season.ID) }
+						hx-target={ fmt.Sprintf("#season-row-%d", season.ID) }
+						hx-swap="outerHTML"
+						class="btn btn-xs btn-ghost join-item">
+						Cancel
+					</button>
+				</div>
+			</form>
+		</td>
+	</tr>
+}
+
+templ AdminSeasonForm(csrfToken string) {
+	<form
+		hx-post="/admin/seasons"
+		hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
+		hx-target="#seasons-table"
+		hx-swap="outerHTML"
+		hx-on::after-request="this.reset()"
+		class="card bg-base-100 shadow p-6 space-y-4">
+		<div class="form-control">
+			<label class="label"><span class="label-text">Season Number</span></label>
+			<input type="number" name="season" class="input input-bordered" required/>
+		</div>
+		<div class="form-control">
+			<label class="label"><span class="label-text">Title</span></label>
+			<input type="text" name="title" class="input input-bordered" required/>
+		</div>
+		<div class="form-control">
+			<label class="label"><span class="label-text">Full Title</span></label>
+			<input type="text" name="title_long" class="input input-bordered"/>
+		</div>
+		<div class="form-control">
+			<label class="label"><span class="label-text">Year</span></label>
+			<input type="number" name="year" class="input input-bordered"/>
+		</div>
+		<div class="form-control">
+			<label class="label"><span class="label-text">Episodes</span></label>
+			<input type="number" name="episodes" class="input input-bordered"/>
+		</div>
+		<div class="form-control">
+			<label class="label"><span class="label-text">Logo URL</span></label>
+			<input type="text" name="logo_url" class="input input-bordered" placeholder="/static/seasons/logo.png"/>
+		</div>
+		<div class="form-control mt-6">
+			<button class="btn btn-primary">Add Season</button>
+		</div>
+	</form>
+}
+
+templ AdminSettings(appData models.AppData, seasons []models.Season, csrfToken string, currentPath string) {
+	@AdminNav(currentPath)
+	<div class="mb-8">
+		<h1 class="text-3xl font-bold">Application Settings</h1>
+		<p class="text-base-content/70">Manage global application state.</p>
+	</div>
+
+	<div id="settings-form-container">
+		@AdminSettingsForm(appData, seasons, csrfToken)
+	</div>
+}
+
+templ AdminSettingsForm(appData models.AppData, seasons []models.Season, csrfToken string) {
+	<form
+		hx-put="/admin/settings"
+		hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
+		hx-target="#settings-form-container"
+		hx-swap="innerHTML"
+		class="card bg-base-100 shadow p-6 space-y-4 max-w-md">
+		<div class="form-control">
+			<label class="label"><span class="label-text">Current Season</span></label>
+			<select name="current_season" class="select select-bordered">
+				for _, s := range seasons {
+					<option value={ fmt.Sprint(s.ID) } selected?={ s.ID == appData.CurrentSeason.ID }>{ s.Title }</option>
+				}
+			</select>
+			<div class="label">
+				<span class="label-text-alt">This is the default season shown on the homepage.</span>
+			</div>
+		</div>
+		<div class="form-control">
+			<label class="label cursor-pointer"><span class="label-text">Draft Active</span>
+				<input type="checkbox" name="draft_active" class="toggle toggle-primary" checked?={ appData.IsDraftActive }/>
+			</label>
+		</div>
+		<div class="form-control mt-6">
+			<button class="btn btn-primary">Save Settings</button>
+		</div>
+	</form>
+}
+
+templ AdminContestants(season models.Season, contestants []models.Contestant, csrfToken string, currentPath string) {
+	@AdminNav(currentPath)
+	<div class="mb-8">
+		<div class="flex items-center gap-4">
+			<div class="w-32">
+				if season.LogoURL != "" {
+					<img src={ season.LogoURL } alt={ season.Title } class="object-contain"/>
+				}
+			</div>
+			<div>
+				<h1 class="text-3xl font-bold">Manage Contestants</h1>
+				<p class="text-base-content/70">Season { fmt.Sprint(season.Season) }: { season.TitleLong }</p>
+				<a href="/admin/seasons" hx-get="/admin/seasons" hx-target="main" hx-push-url="true" class="text-sm link link-primary">&larr; Back to Seasons</a>
+			</div>
+		</div>
+	</div>
+	<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+		<div class="lg:col-span-2">
+			<h2 class="text-xl font-bold mb-4">Existing Contestants</h2>
+			<div id="contestants-table" class="overflow-x-auto">
+				@AdminContestantsTable(season.ID, contestants)
+			</div>
+		</div>
+		<div>
+			<h2 class="text-xl font-bold mb-4">Add New Contestant</h2>
+			@AdminContestantForm(season.ID, csrfToken)
+
+			<div class="mt-8">
+				<h2 class="text-xl font-bold mb-4">Bulk Add Contestants</h2>
+				@AdminContestantBulkForm(season.ID, csrfToken)
+			</div>
+		</div>
+	</div>
+}
+
+
+
+templ AdminContestantsTable(seasonID int, contestants []models.Contestant) {
+	<table class="table table-zebra bg-base-100 shadow">
+		<thead>
+			<tr>
+				<th>Name</th>
+				<th>Known By</th>
+				<th>Owner</th>
+				<th>Image</th>
+				<th></th>
+			</tr>
+		</thead>
+		<tbody>
+			for _, c := range contestants {
+				@AdminContestantRow(c)
+			}
+		</tbody>
+	</table>
+}
+
+templ AdminContestantRow(contestant models.Contestant) {
+	<tr id={ fmt.Sprintf("contestant-row-%d", contestant.ID) }>
+		<td class="font-bold">
+			<span>{ contestant.Name }</span>
+			if contestant.IsWinner {
+				<span class="text-warning ml-2" title="Winner">👑</span>
+			}
+		</td>
+		<td>{ contestant.KnownBy }</td>
+		<td>{ contestant.DraftedBy }</td>
+		<td>
+			<div class="avatar">
+				<div class="w-12 rounded-full">
+					<img src={ contestant.ImageURL } alt={ contestant.Name }/>
+				</div>
+			</div>
+		</td>
+		<td class="text-right">
+			<button
+				hx-get={ fmt.Sprintf("/admin/contestants/%d/edit", contestant.ID) }
+				hx-target={ fmt.Sprintf("#contestant-row-%d", contestant.ID) }
+				hx-swap="outerHTML"
+				class="btn btn-xs btn-ghost">
+				Edit
+			</button>
+		</td>
+	</tr>
+}
+
+templ AdminContestantEditForm(contestant models.Contestant, users []models.User, csrfToken string) {
+	<tr id={ fmt.Sprintf("contestant-row-%d", contestant.ID) }>
+		<td colspan="5">
+			<form
+				hx-put={ fmt.Sprintf("/admin/contestants/%d", contestant.ID) }
+				hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
+				hx-target={ fmt.Sprintf("#contestant-row-%d", contestant.ID) }
+				hx-swap="outerHTML"
+				class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end p-4 bg-base-200 rounded-lg">
+				<div class="form-control w-full md:col-span-2">
+					<label class="label py-0"><span class="label-text text-xs">Full Name</span></label>
+					<input type="text" name="name" value={ contestant.Name } class="input input-bordered input-sm w-full" placeholder="Full Name"/>
+				</div>
+				<div class="form-control w-full md:col-span-2">
+					<label class="label py-0"><span class="label-text text-xs">Known By</span></label>
+					<input type="text" name="known_by" value={ contestant.KnownBy } class="input input-bordered input-sm w-full" placeholder="Known By"/>
+				</div>
+				<div class="form-control w-full md:col-span-4">
+					<label class="label py-0"><span class="label-text text-xs">Image URL</span></label>
+					<input type="text" name="image_url" value={ contestant.ImageURL } class="input input-bordered input-sm w-full" placeholder="Image URL"/>
+				</div>
+				<div class="form-control w-full">
+					<label class="label py-0"><span class="label-text text-xs">Elimination Ep.</span></label>
+					<input type="number" name="elimination_episode" class="input input-bordered input-sm w-full" placeholder="Elim Ep."
+						if contestant.EliminationEpisode > 0 {
+							value={ fmt.Sprintf("%d", contestant.EliminationEpisode) }
+						}
+					/>
+				</div>
+				<div class="form-control w-full">
+					<label class="label py-0"><span class="label-text text-xs">Added Ep.</span></label>
+					<input type="number" name="added_episode" value={ fmt.Sprintf("%d", contestant.AddedEpisode) } class="input input-bordered input-sm w-full" placeholder="Added Ep."/>
+				</div>
+				<div class="form-control w-full">
+					<label class="label py-0"><span class="label-text text-xs">Owner</span></label>
+					<select name="owner_id" class="select select-bordered select-sm w-full">
+						<option value="0" selected?={ contestant.OwnerID == nil }>Unassigned</option>
+						for _, u := range users {
+							<option value={ fmt.Sprint(u.ID) } selected?={ contestant.OwnerID != nil && *contestant.OwnerID == u.ID }>{ u.Name }</option>
+						}
+					</select>
+				</div>
+				<div class="form-control">
+					<label class="label cursor-pointer gap-2">
+						<span class="label-text">Winner</span>
+						<input type="checkbox" name="is_winner" class="checkbox checkbox-warning" checked?={ contestant.IsWinner }/>
+					</label>
+				</div>
+				<div class="join self-end justify-self-end md:col-span-4">
+					<button type="submit" class="btn btn-xs btn-primary join-item">Save</button>
+					<button
+						type="button"
+						hx-get={ fmt.Sprintf("/admin/contestants/%d", contestant.ID) }
+						hx-target={ fmt.Sprintf("#contestant-row-%d", contestant.ID) }
+						hx-swap="outerHTML"
+						class="btn btn-xs btn-ghost join-item">
+						Cancel
+					</button>
+				</div>
+			</form>
+		</td>
+	</tr>
+}
+
+templ AdminContestantForm(seasonID int, csrfToken string) {
+	<form
+		hx-post={ fmt.Sprintf("/admin/seasons/%d/contestants", seasonID) }
+		hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
+		hx-target="#contestants-table"
+		hx-swap="outerHTML"
+		hx-on::after-request="this.reset()"
+		class="card bg-base-100 shadow p-6 space-y-4">
+		<div class="form-control">
+			<label class="label"><span class="label-text">Full Name</span></label>
+			<input type="text" name="name" class="input input-bordered" required/>
+		</div>
+		<div class="form-control">
+			<label class="label"><span class="label-text">Known By (Nickname)</span></label>
+			<input type="text" name="known_by" class="input input-bordered" required/>
+		</div>
+		<div class="form-control">
+			<label class="label"><span class="label-text">Image URL</span></label>
+			<input type="text" name="image_url" class="input input-bordered" placeholder="/static/contestants/sXX_name.jpg" required/>
+		</div>
+		<div class="form-control mt-6">
+			<button class="btn btn-primary">Add Contestant</button>
+		</div>
+	</form>
+}
+
+templ AdminContestantBulkForm(seasonID int, csrfToken string) {
+	<form
+		hx-post={ fmt.Sprintf("/admin/seasons/%d/contestants/bulk", seasonID) }
+		hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
+		hx-encoding="multipart/form-data"
+		hx-target="#contestants-table"
+		hx-swap="outerHTML"
+		hx-on::after-request="this.reset()"
+		class="card bg-base-100 shadow p-6 space-y-4">
+		<div class="form-control">
+			<label class="label"><span class="label-text">Contestant CSV File</span></label>
+			<input type="file" name="contestant_csv" accept=".csv" class="file-input file-input-bordered w-full" required/>
+			<div class="label">
+				<span class="label-text-alt">CSV format: <code class="bg-base-300 p-1 rounded-md">name,known_by,image_url</code></span>
+			</div>
+		</div>
+		<div class="form-control mt-6">
+			<button class="btn btn-secondary">Upload CSV</button>
+		</div>
+	</form>
+}

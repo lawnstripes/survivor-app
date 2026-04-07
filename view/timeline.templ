@@ -1,0 +1,172 @@
+package view
+
+import (
+    "survivor-app/internal/models"
+    "fmt"
+)
+
+templ SeasonView(season models.Season, rows []models.TimelineRow, displayMode string) {
+    @SeasonHeader(season)
+    
+    <div class="flex justify-end mb-4">
+        <div class="join">
+            <button 
+                class={ "join-item btn btn-sm", templ.KV("btn-active", displayMode == "avatar") }
+                hx-get={ fmt.Sprintf("/?season_id=%d&display=avatar", season.ID) }
+                hx-target="main"
+                hx-push-url="true">
+                Timeline
+            </button>
+            <button 
+                class={ "join-item btn btn-sm", templ.KV("btn-active", displayMode == "text") }
+                hx-get={ fmt.Sprintf("/?season_id=%d&display=text", season.ID) }
+                hx-target="main"
+                hx-push-url="true">
+                Table
+            </button>
+        </div>
+    </div>
+
+    if displayMode == "text" {
+        @EliminationTimelineTable(rows, season)
+    } else {
+        @EliminationTimeline(rows, season)
+    }
+}
+
+templ UserColumn(user models.User, season models.Season) {
+    if user.Slug == "bench" {
+        <div class="card card-compact bg-base-200/50 w-16 md:w-24 lg:w-32 shadow-sm border border-base-300 grayscale opacity-70">
+            <figure class="w-full aspect-square bg-neutral text-neutral-content flex items-center justify-center text-3xl md:text-4xl lg:text-5xl">
+                🪑
+            </figure>
+            <div class="card-body items-center text-center p-1 md:p-2 lg:p-3">
+                <h2 class="card-title text-xs lg:text-sm m-0">{ user.Name }</h2>
+            </div>
+        </div>
+    } else {
+        <a hx-get={ templ.SafeURL(fmt.Sprintf("/user/%s?season_id=%d",user.Slug,season.ID)) } hx-target="main" hx-push-url="false" class="card card-compact bg-base-200 w-16 md:w-24 lg:w-32 shadow-sm hover:shadow-md transition-all border border-base-300 hover:border-primary/50 cursor-pointer group overflow-hidden">
+            <figure class="w-full aspect-square bg-neutral relative">
+                if user.ImageURL != "" {
+                    <img src={ user.AvatarURL } alt={ user.Name } class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300" />
+                }
+            </figure>
+            <div class="card-body items-center text-center bg-base-200 z-10 p-1 md:p-2 lg:p-3">
+                <h2 class="card-title text-xs lg:text-sm m-0 group-hover:text-primary transition-colors">{ user.Name }</h2>
+            </div>
+        </a>
+    }
+}
+
+templ EliminationTimeline(rows []models.TimelineRow, season models.Season) {
+    <div class="overflow-x-auto bg-base-100 rounded-box shadow">
+        <table class="table table-zebra table-xs md:table-sm lg:table-md w-full">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Active Roster</th>
+                    for i := 1; i <= season.Episodes; i++ {
+                        <th class="text-center px-1 lg:px-4">Ep { fmt.Sprint(i) }</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                for _, row := range rows {
+                    <tr>
+                        <td>
+                            @UserColumn(row.User, season)
+                        </td>
+                        <td>
+                            <div class="flex -space-x-2">
+                                for _, p := range row.ActivePlayers {
+                                    <div class="avatar tooltip" data-tip={ p.Name }>
+                                        if p.IsWinner {
+                                            <div class="absolute -top-1 -right-1 lg:-top-2 lg:-right-2 z-10 text-lg lg:text-2xl drop-shadow-md">👑</div>
+                                        }
+                                        <div class="w-10 md:w-14 lg:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-1 lg:ring-offset-2">
+                                            <img src={ p.ImageURL } alt={ p.Name } class="object-cover object-top" />
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </td>
+                        for i := 1; i <= season.Episodes; i++ {
+                            <td class="text-center align-middle px-1 lg:px-4">
+                                if elims, ok := row.Eliminations[i]; ok {
+                                    <div class="flex flex-col gap-1 lg:gap-2 items-center">
+                                        for _, p := range elims {
+                                            <div class="avatar grayscale tooltip" data-tip={ p.Name }>
+                                                <div class="w-8 md:w-10 lg:w-14 rounded-full ring ring-error ring-offset-base-100 ring-offset-1">
+                                                    <img src={ p.ImageURL } alt={ p.Name } class="object-cover object-top" />
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+templ EliminationTimelineTable(rows []models.TimelineRow, season models.Season) {
+    <div class="overflow-x-auto bg-base-100 rounded-box shadow">
+        <table class="table table-zebra table-xs md:table-sm lg:table-md w-full">
+            <thead>
+                <tr>
+                    <th></th>
+                    for i := 1; i <= season.Episodes; i++ {
+                        <th class="text-center px-1 lg:px-4">Ep { fmt.Sprint(i) }</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                for _, row := range rows {
+                    <tr>
+                        <td>
+                            @UserColumn(row.User, season)
+                        </td>
+                        for i := 1; i <= season.Episodes; i++ {
+                            <td class="text-center align-middle px-1 lg:px-4">
+                                    <div class="flex flex-col gap-1 text-xs lg:text-sm whitespace-nowrap">
+                                        for _, p := range row.Contestants {
+                                            if row.User.Slug == "bench" {
+                                                if p.OwnerID == nil || i < p.AddedEpisode {
+                                                    if p.EliminationEpisode > 0 && p.EliminationEpisode < i {
+                                                        <span class="invisible" aria-hidden="true">{ p.KnownBy }</span>
+                                                    } else if p.EliminationEpisode > 0 && p.EliminationEpisode == i {
+                                                        <span class="line-through opacity-50 text-error">{ p.KnownBy }</span>
+                                                    } else {
+                                                        <span>{ p.KnownBy }</span>
+                                                    }
+                                                } else {
+                                                    <span class="invisible" aria-hidden="true">{ p.KnownBy }</span>
+                                                }
+                                            } else {
+                                                if p.AddedEpisode <= 1 || i >= p.AddedEpisode {
+                                                    if p.EliminationEpisode > 0 && p.EliminationEpisode < i {
+                                                        <span class="invisible" aria-hidden="true">{ p.KnownBy }</span>
+                                                    } else if p.EliminationEpisode > 0 && p.EliminationEpisode == i {
+                                                        <span class="line-through opacity-50 text-error">{ p.KnownBy }</span>
+                                                    } else if p.IsWinner && i == season.Episodes {
+                                                        <span class="font-bold text-warning">👑 { p.KnownBy }</span>
+                                                    } else {
+                                                        <span>{ p.KnownBy }</span>
+                                                    }
+                                                } else {
+                                                    <span class="invisible" aria-hidden="true">{ p.KnownBy }</span>
+                                                }
+                                            }
+                                        }
+                                    </div>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

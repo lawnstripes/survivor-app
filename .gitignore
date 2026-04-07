@@ -1,0 +1,42 @@
+# --- Binaries & Compiled Files ---
+# Standard Go binary output
+bin/
+dist/
+# Your specific Air build folder
+tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# --- Tool Specifics ---
+*_templ.go
+
+# --- Environment & OS ---
+.env
+.envrc
+.venv
+# WSL/Windows metadata
+.DS_Store
+Thumbs.db
+
+# --- VS Code ---
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+
+# --- Go Dependencies ---
+# Only ignore vendor if you aren't using vendoring (standard for modern Go)
+vendor/
+
+# --- App Specific (Survivor Draft) ---
+# Don't commit your local SQLite database
+*.db
+*.db-journal
+
+# website assests
+static/*

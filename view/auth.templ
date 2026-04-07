@@ -1,0 +1,42 @@
+package view
+
+import "fmt"
+
+templ Login(csrfToken string) {
+	@LoginWithErrors("", csrfToken)
+}
+
+templ LoginWithErrors(errorMsg string, csrfToken string) {
+	<div id="login-form" class="flex justify-center">
+		<div class="max-w-md w-full card bg-base-100 shadow-xl p-8 border border-base-300">
+			<h2 class="text-3xl font-bold mb-2 text-primary text-center">Login</h2>
+			<p class="mb-6 text-base-content/70 text-center">Enter your credentials to continue.</p>
+                
+			<form hx-post="/login" hx-target="#login-form" 
+			hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
+			hx-swap="outerHTML">
+				if errorMsg != "" {
+						<div role="alert" class="alert alert-error">
+							<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+							<span>{ errorMsg }</span>
+						</div>
+				}
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text">Username (slug)</span>
+						</label>
+						<input type="text" name="slug" placeholder="username" class="input input-bordered" required/>
+					</div>
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text">Password</span>
+						</label>
+						<input type="password" name="password" placeholder="password" class="input input-bordered" required/>
+					</div>
+					<div class="form-control mt-6">
+						<button class="btn btn-primary">Login</button>
+					</div>
+			</form>
+		</div>
+	</div>
+}

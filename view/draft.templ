@@ -1,0 +1,16 @@
+package view
+
+import "survivor-app/internal/models"
+
+templ DraftRoom(contestants []models.Contestant) {
+    <div hx-ext="sse" sse-connect="/events">
+        <div class="flex justify-between items-center mb-8">
+            <h1>Live War Room: Season 51</h1>
+            <span class="badge badge-error animate-pulse">LIVE</span>
+        </div>
+        
+        <div id="grid-container" hx-get="/contestant-grid" hx-trigger="sse:message">
+            @ContestantGrid(contestants)
+        </div>
+    </div>
+}

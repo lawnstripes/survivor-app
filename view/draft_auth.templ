@@ -1,0 +1,25 @@
+package view
+
+templ DraftLogin() {
+    <div class="hero min-h-[60vh]">
+        <div class="hero-content text-center">
+            <div class="max-w-md card bg-base-200 shadow-xl p-8 border border-base-300">
+                <h2 class="text-3xl font-bold mb-2 text-primary">War Room Secured</h2>
+                <p class="mb-6 text-base-content/70">Enter the commissioner password to access the live draft.</p>
+                
+                <form hx-post="/draft/auth" hx-target="#login-error">
+                    <input 
+                        type="password" 
+                        name="password" 
+                        class="input input-bordered w-full mb-2" 
+                        placeholder="Password..." 
+                        autofocus 
+                    />
+                    <div id="login-error" class="text-error text-sm mb-4 h-5"></div>
+                    
+                    <button type="submit" class="btn btn-primary w-full">Enter</button>
+                </form>
+            </div>
+        </div>
+    </div>
+}

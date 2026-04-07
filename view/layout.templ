@@ -1,0 +1,90 @@
+package view
+import "survivor-app/internal/models"
+import "fmt"
+
+templ SeasonSelector(seasons []models.Season, currentSeason models.Season, currentPath string) {
+    <div class="form-control">
+        <select
+            name="season_id"
+            class="select select-bordered select-sm"
+            hx-get={ currentPath }
+            hx-push-url="true"
+            hx-target="main">
+            for _, s := range seasons {
+                <option 
+                    value={ fmt.Sprint(s.ID) }
+                    selected?={ s.ID == currentSeason.ID }>
+                    { s.Title }
+                </option>
+            }
+            </select>
+            
+    </div>
+}
+
+templ SeasonHeader(season models.Season) {
+<div class="flex flex-col items-center justify-center text-center mb-10 gap-4">
+    <div class="w-64 md:w-72"> 
+        <img 
+            src={ season.LogoURL } 
+            alt={ season.Title } 
+            class="rounded-xl shadow-xl w-full h-auto object-contain p-2" 
+        />
+    </div>
+</div>
+}
+
+templ Layout(title string, contents templ.Component, appData models.AppData, currentUser models.User, currentPath string) {
+    <!DOCTYPE html>
+    <html lang="en" data-theme="dark">
+    <head>
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>{ title }</title>
+        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet" type="text/css" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+        <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
+    </head>
+    <body class="min-h-screen bg-base-300 font-sans">
+        <header class="navbar bg-base-100 shadow-lg mb-8">
+            <div class="flex-1">
+                <a class="btn btn-ghost text-xl text-primary" href="/">Blue Elm Survivor Challenge</a>
+            </div>
+            <div class="navbar-end gap-4">
+                if appData.IsDraftActive {
+                    <a class="text-sm font-bold opacity-50" href="/draft">LIVE WAR ROOM</a>   
+                }
+                if currentUser.IsAdmin {
+                    <a href="/admin/seasons" hx-get="/admin/seasons" hx-target="main" hx-push-url="true" class="btn btn-ghost btn-sm">Admin</a>
+                }
+                if !appData.IsDraftActive {
+                    @SeasonSelector(appData.Seasons, appData.CurrentSeason, currentPath)
+                }
+                if currentUser.ID != 0 {
+                    <div class="dropdown dropdown-end">
+                        <label tabindex="0" class="btn btn-ghost btn-circle avatar"> 
+                            <div class="w-10 h-10 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2 overflow-hidden bg-base-300">
+                                <img src={ currentUser.AvatarURL } alt={ currentUser.Name } class="w-full h-full object-cover" />
+                            </div>
+                        </label>
+                        <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+                            <li><a href="/logout">Logout</a></li>
+                        </ul>
+                    </div>
+                } else {
+                    <a href="/login" hx-get="/login" hx-target="main" hx-push-url="true" class="btn btn-primary btn-sm">Login</a>
+                }
+            </div>
+        </header>
+    <main class="w-full mx-auto px-4 md:w-10/12">
+        @contents
+    </main>
+        <footer class="footer footer-center p-4 bg-base-100 text-base-content mt-10">
+            <aside>
+                <p>Built with <a class="link link-primary" href="https://go.dev">Go</a> + <a class="link link-primary" href="https://htmx.org">htmx</a></p>
+            </aside>
+        </footer>
+    </body>
+    </html>
+}

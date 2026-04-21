@@ -1,37 +1,46 @@
 package db
 
 import (
+	"embed"
 	"fmt"
-	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
+
+//go:embed init/*.sql
+var initFS embed.FS
 
 // InitDB initializes a connection to a SQLite database file.
 func InitDB(dataSourceName string) (*sqlx.DB, error) {
-	db, err := sqlx.Connect("sqlite3", dataSourceName)
+	db, err := sqlx.Connect("sqlite", dataSourceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to sqlite: %w", err)
 	}
 
-	initPath := "./internal/db/init/"
-	info, err := os.Stat(initPath)
-	if err == nil && info.IsDir() {
-		files, err := os.ReadDir(initPath)
-		if err != nil {
-			return db, fmt.Errorf("failed to open init file: %w", err)
+	files, err := initFS.ReadDir("init")
+	if err != nil {
+		return db, fmt.Errorf("failed to read embedded init directory: %w", err)
+	}
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name() < files[j].Name()
+	})
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
 		}
-		for _, file := range files {
-			content, err := os.ReadFile(filepath.Join(initPath, file.Name()))
-			if err != nil {
-				return db, fmt.Errorf("failed to read init file: %w", err)
-			}
-			_, err = db.Exec(string(content))
-			if err != nil {
-				return db, fmt.Errorf("failed to apply sqlite schema: %w", err)
-			}
+		content, err := initFS.ReadFile(filepath.Join("init", file.Name()))
+		if err != nil {
+			return db, fmt.Errorf("failed to read embedded init file %s: %w", file.Name(), err)
+		}
+		_, err = db.Exec(string(content))
+		if err != nil {
+			return db, fmt.Errorf("failed to apply sqlite schema from %s: %w", file.Name(), err)
 		}
 	}
 

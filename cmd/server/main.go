@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"survivor-app/internal/db"
 	"survivor-app/internal/filestore"
@@ -37,8 +39,12 @@ func main() {
 	sse := sse.NewBroker()
 	h := handlers.NewHandler(store, sse, appdata, fstore)
 
-	log.Println("Server starting on :8080")
-	err = http.ListenAndServe(":8080", h.Routes())
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Server starting on :%s", port)
+	err = http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", port), h.Routes())
 	if err != nil {
 		log.Fatal(err)
 	}

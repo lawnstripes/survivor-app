@@ -40,7 +40,8 @@ func (h *Handler) Routes() chi.Router {
 	r.Use(h.UserMiddleware)
 
 	// static assets
-	r.Handle("/static/*", http.StripPrefix("/static", http.FileServer(http.Dir("./static"))))
+	cacheHandler := h.StaticFilesMiddleware(http.StripPrefix("/static", http.FileServer(http.Dir("./static"))))
+	r.Handle("/static/*", cacheHandler)
 
 	// routes
 	r.Get("/", h.HandleHome)

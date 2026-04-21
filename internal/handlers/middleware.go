@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"survivor-app/internal/models"
@@ -113,6 +114,20 @@ func (h *Handler) AdminOnlyMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (h *Handler) StaticFilesMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		contentType := r.RequestURI
+		if contentType != "" {
+			if strings.HasPrefix(contentType, "/static/css") || strings.HasPrefix(contentType, "/static/js") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

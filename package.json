@@ -1,0 +1,29 @@
+{
+  "name": "survivor-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:css": "tailwindcss -i ./static/css/input.css -o ./static/css/styles.css --minify",
+    "postinstall": "copyfiles -f node_modules/htmx.org/dist/htmx.min.js static/js && copyfiles -f node_modules/htmx.org/dist/ext/sse.js static/js/htmx-ext"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lawnstripes/survivor-app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/lawnstripes/survivor-app/issues"
+  },
+  "homepage": "https://github.com/lawnstripes/survivor-app#readme",
+  "devDependencies": {
+    "copyfiles": "^2.4.1",
+    "daisyui": "^4.12.2",
+    "htmx.org": "^2.0.0",
+    "tailwindcss": "^3.4.4"
+  }
+}

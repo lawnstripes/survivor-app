@@ -26,7 +26,6 @@ func (h *Handler) HandleLoginGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleLoginPost(w http.ResponseWriter, r *http.Request) {
-	log.Print("handle login post")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
 		return

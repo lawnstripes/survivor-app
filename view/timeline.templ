@@ -81,9 +81,9 @@ templ EliminationTimeline(rows []models.TimelineRow, season models.Season) {
                                 for _, p := range row.ActivePlayers {
                                     <div class="avatar tooltip" data-tip={ p.Name }>
                                         if p.IsWinner {
-                                            <div class="absolute -top-1 -right-1 lg:-top-2 lg:-right-2 z-10 text-lg lg:text-2xl drop-shadow-md">👑</div>
+                                            <div class="absolute -top-1 -left-1 lg:-top-2 lg:-left-2 z-10 text-lg lg:text-2xl drop-shadow-md">👑</div>
                                         }
-                                        <div class="w-10 md:w-14 lg:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-1 lg:ring-offset-2">
+                                        <div class={ templ.KV("ring-warning",p.IsWinner), templ.KV("ring-primary", !p.IsWinner), "w-10 md:w-14 lg:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-1 lg:ring-offset-2" } >
                                             <img src={ p.ImageURL } alt={ p.Name } class="object-cover object-top" />
                                         </div>
                                     </div>

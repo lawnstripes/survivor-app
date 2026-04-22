@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:css": "tailwindcss -i ./static/css/input.css -o ./static/css/styles.css --minify",
-    "postinstall": "copyfiles -f node_modules/htmx.org/dist/htmx.min.js static/js && copyfiles -f node_modules/htmx.org/dist/ext/sse.js static/js/htmx-ext"
+    "copy:js": "copyfiles -f node_modules/htmx.org/dist/htmx.min.js static/js && copyfiles -f node_modules/htmx.org/dist/ext/sse.js static/js/htmx-ext"
   },
   "repository": {
     "type": "git",

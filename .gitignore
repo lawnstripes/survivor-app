@@ -39,7 +39,9 @@ vendor/
 *.db-journal
 
 # website assests
-static/
+static/*
+!static/css/
+static/css/*
 !static/css/input.css
 
 # npm/node/garbo

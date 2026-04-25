@@ -220,6 +220,7 @@ func BuildTimelineData(users []models.User, contestants []models.Contestant) []m
 			ActivePlayers: []models.Contestant{},
 			Eliminations:  make(map[int][]models.Contestant),
 			Contestants:   []models.Contestant{},
+			UserHasWinner: false,
 		}
 
 		for _, c := range contestants {
@@ -230,6 +231,9 @@ func BuildTimelineData(users []models.User, contestants []models.Contestant) []m
 					row.ActivePlayers = append(row.ActivePlayers, c)
 				}
 				row.Contestants = append(row.Contestants, c)
+				if c.IsWinner {
+					row.UserHasWinner = true
+				}
 			}
 		}
 

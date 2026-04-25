@@ -17,6 +17,7 @@ type TimelineRow struct {
 	ActivePlayers []Contestant
 	Eliminations  map[int][]Contestant // Key = Episode Number. Value = Slice of contestants eliminated that episode
 	Contestants   []Contestant         // used for the table view
+	UserHasWinner bool
 }
 
 type UserProfile struct {

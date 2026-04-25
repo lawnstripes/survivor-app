@@ -34,7 +34,7 @@ templ SeasonView(season models.Season, rows []models.TimelineRow, displayMode st
     }
 }
 
-templ UserColumn(user models.User, season models.Season) {
+templ UserColumn(user models.User, season models.Season, seasonWinner bool) {
     if user.Slug == "bench" {
         <div class="card card-compact bg-base-200/50 w-16 md:w-24 lg:w-32 shadow-sm border border-base-300 grayscale opacity-70">
             <figure class="w-full aspect-square bg-neutral text-neutral-content flex items-center justify-center text-3xl md:text-4xl lg:text-5xl">
@@ -46,13 +46,16 @@ templ UserColumn(user models.User, season models.Season) {
         </div>
     } else {
         <a hx-get={ templ.SafeURL(fmt.Sprintf("/user/%s?season_id=%d",user.Slug,season.ID)) } hx-target="main" hx-push-url="false" class="card card-compact bg-base-200 w-16 md:w-24 lg:w-32 shadow-sm hover:shadow-md transition-all border border-base-300 hover:border-primary/50 cursor-pointer group overflow-hidden">
+            if seasonWinner {
+                <span class="badge text-xl">👑</span>
+            }
             <figure class="w-full aspect-square bg-neutral relative">
                 if user.ImageURL != "" {
                     <img src={ user.AvatarURL } alt={ user.Name } class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300" />
                 }
             </figure>
             <div class="card-body items-center text-center bg-base-200 z-10 p-1 md:p-2 lg:p-3">
-                <h2 class="card-title text-xs lg:text-sm m-0 group-hover:text-primary transition-colors">{ user.Name }</h2>
+                <h2 class={ templ.KV("text-warning", seasonWinner), "card-title text-xs lg:text-sm m-0 group-hover:text-primary transition-colors"}>{ user.Name }</h2>
             </div>
         </a>
     }
@@ -74,15 +77,12 @@ templ EliminationTimeline(rows []models.TimelineRow, season models.Season) {
                 for _, row := range rows {
                     <tr>
                         <td>
-                            @UserColumn(row.User, season)
+                            @UserColumn(row.User, season, row.UserHasWinner)
                         </td>
                         <td>
                             <div class="flex -space-x-2">
                                 for _, p := range row.ActivePlayers {
                                     <div class="avatar tooltip" data-tip={ p.Name }>
-                                        if p.IsWinner {
-                                            <div class="absolute -top-1 -left-1 lg:-top-2 lg:-left-2 z-10 text-lg lg:text-2xl drop-shadow-md">👑</div>
-                                        }
                                         <div class={ templ.KV("ring-warning",p.IsWinner), templ.KV("ring-primary", !p.IsWinner), "w-10 md:w-14 lg:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-1 lg:ring-offset-2" } >
                                             <img src={ p.ImageURL } alt={ p.Name } class="object-cover object-top" />
                                         </div>
@@ -127,7 +127,7 @@ templ EliminationTimelineTable(rows []models.TimelineRow, season models.Season) 
                 for _, row := range rows {
                     <tr>
                         <td>
-                            @UserColumn(row.User, season)
+                            @UserColumn(row.User, season, row.UserHasWinner)
                         </td>
                         for i := 1; i <= season.Episodes; i++ {
                             <td class="text-center align-middle px-1 lg:px-4">
@@ -152,7 +152,7 @@ templ EliminationTimelineTable(rows []models.TimelineRow, season models.Season) 
                                                     } else if p.EliminationEpisode > 0 && p.EliminationEpisode == i {
                                                         <span class="line-through opacity-50 text-error">{ p.KnownBy }</span>
                                                     } else if p.IsWinner && i == season.Episodes {
-                                                        <span class="font-bold text-warning">👑 { p.KnownBy }</span>
+                                                        <span class="font-bold text-warning"> { p.KnownBy }</span>
                                                     } else {
                                                         <span>{ p.KnownBy }</span>
                                                     }

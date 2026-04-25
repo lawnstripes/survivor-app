@@ -69,6 +69,14 @@ func (h *Handler) HandleAdminSeasonCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// need to refresh app data for season drop down.
+	newAppData, err := h.Store.GetAppData()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	h.AppData = newAppData
+
 	view.AdminSeasonsTable(seasons).Render(r.Context(), w)
 }
 

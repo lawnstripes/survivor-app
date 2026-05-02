@@ -24,8 +24,7 @@ func (h *Handler) HandleAdminSeasonsGet(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	csrfToken := r.Context().Value(csrfTokenKey).(string)
-	adminComponent := view.AdminSeasons(seasons, csrfToken, r.URL.Path)
+	adminComponent := view.AdminSeasons(seasons, r.URL.Path)
 	if r.Header.Get("HX-Request") == "true" {
 		adminComponent.Render(r.Context(), w)
 		return
@@ -69,7 +68,7 @@ func (h *Handler) HandleAdminSeasonCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// need to refresh app data for season drop down.
+	// need to refresh app data for season drop down
 	newAppData, err := h.Store.GetAppData()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -112,8 +111,7 @@ func (h *Handler) HandleAdminSeasonEditGet(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Season not found", http.StatusNotFound)
 		return
 	}
-	csrfToken := r.Context().Value(csrfTokenKey).(string)
-	view.AdminSeasonEditForm(season, csrfToken).Render(r.Context(), w)
+	view.AdminSeasonEditForm(season).Render(r.Context(), w)
 }
 
 func (h *Handler) HandleAdminSeasonUpdate(w http.ResponseWriter, r *http.Request) {
@@ -186,8 +184,7 @@ func (h *Handler) HandleAdminContestantsGet(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	csrfToken := r.Context().Value(csrfTokenKey).(string)
-	adminComponent := view.AdminContestants(season, contestants, csrfToken, r.URL.Path)
+	adminComponent := view.AdminContestants(season, contestants, r.URL.Path)
 	if r.Header.Get("HX-Request") == "true" {
 		adminComponent.Render(r.Context(), w)
 		return
@@ -306,8 +303,7 @@ func (h *Handler) HandleAdminContestantEditGet(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Failed to fetch users", http.StatusInternalServerError)
 		return
 	}
-	csrfToken := r.Context().Value(csrfTokenKey).(string)
-	view.AdminContestantEditForm(contestant, users, csrfToken).Render(r.Context(), w)
+	view.AdminContestantEditForm(contestant, users).Render(r.Context(), w)
 }
 
 func (h *Handler) HandleAdminContestantUpdate(w http.ResponseWriter, r *http.Request) {
@@ -418,8 +414,7 @@ func (h *Handler) HandleAdminSettingsGet(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Failed to fetch seasons", http.StatusInternalServerError)
 		return
 	}
-	csrfToken := r.Context().Value(csrfTokenKey).(string)
-	settingsComponent := view.AdminSettings(*h.AppData, seasons, csrfToken, r.URL.Path)
+	settingsComponent := view.AdminSettings(*h.AppData, seasons, r.URL.Path)
 	if r.Header.Get("HX-Request") == "true" {
 		settingsComponent.Render(r.Context(), w)
 		return
@@ -462,9 +457,8 @@ func (h *Handler) HandleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Failed to fetch seasons", http.StatusInternalServerError)
 		return
 	}
-	csrfToken := r.Context().Value(csrfTokenKey).(string)
 	// Re-render the form to show the updated state
-	view.AdminSettingsForm(*h.AppData, seasons, csrfToken).Render(r.Context(), w)
+	view.AdminSettingsForm(*h.AppData, seasons).Render(r.Context(), w)
 }
 
 func ptrAtoi(s string) *int {

@@ -12,8 +12,7 @@ import (
 )
 
 func (h *Handler) HandleLoginGet(w http.ResponseWriter, r *http.Request) {
-	csrfToken := r.Context().Value(csrfTokenKey).(string)
-	loginComponent := view.Login(csrfToken)
+	loginComponent := view.Login()
 
 	if r.Header.Get("HX-Request") == "true" {
 		loginComponent.Render(r.Context(), w)
@@ -33,14 +32,13 @@ func (h *Handler) HandleLoginPost(w http.ResponseWriter, r *http.Request) {
 
 	slug := r.FormValue("slug")
 	password := r.FormValue("password")
-	csrfToken := r.Context().Value(csrfTokenKey).(string)
 
 	user, err := h.Store.GetUserBySlug(slug)
 	if err != nil || user.PasswordHash == nil {
 		// User not found or has no password, render login with an error.
 		// It's better to be vague in error messages for security.
 
-		component := view.LoginWithErrors(csrfToken, "Invalid credentials")
+		component := view.LoginWithErrors("Invalid credentials")
 		component.Render(r.Context(), w)
 		return
 	}
@@ -48,7 +46,7 @@ func (h *Handler) HandleLoginPost(w http.ResponseWriter, r *http.Request) {
 	err = bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password))
 	if err != nil {
 		// Password does not match
-		component := view.LoginWithErrors(csrfToken, "Invalid credentials")
+		component := view.LoginWithErrors("Invalid credentials")
 		component.Render(r.Context(), w)
 		return
 	}

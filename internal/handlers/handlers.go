@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
+	"strings"
 
 	"survivor-app/internal/db"
 	"survivor-app/internal/filestore"
@@ -24,8 +27,7 @@ type Handler struct {
 type contextKey string
 
 const (
-	userKey      contextKey = "user"
-	csrfTokenKey contextKey = "csrfToken"
+	userKey contextKey = "user"
 )
 
 func NewHandler(store db.Store, broker *sse.Broker, appdata *models.AppData, fstore filestore.FileStore) *Handler {
@@ -35,8 +37,24 @@ func NewHandler(store db.Store, broker *sse.Broker, appdata *models.AppData, fst
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 
-	// CSRF middleware must come before the router and any handlers that need protection
-	r.Use(h.CSRFMiddleware)
+	originsStr := os.Getenv("ALLOWED_ORIGINS")
+	if originsStr == "" {
+		originsStr = "http://localhost:8080"
+		log.Printf("warning: ALLOWED_ORIGINS environmental variable is null. Defaulting to %s for CSRF protection", originsStr)
+	}
+	allowedOrigins := strings.Split(originsStr, ",")
+
+	csrfProtection := http.NewCrossOriginProtection()
+	for _, origin := range allowedOrigins {
+		trimOrigin := strings.TrimSpace(origin)
+		if trimOrigin != "" {
+			if err := csrfProtection.AddTrustedOrigin(trimOrigin); err != nil {
+				log.Fatalf("failed to add trusted origin for CSRF protection: %v", err)
+			}
+		}
+
+	}
+	r.Use(csrfProtection.Handler)
 	r.Use(h.UserMiddleware)
 
 	// static assets

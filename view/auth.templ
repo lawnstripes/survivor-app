@@ -1,19 +1,16 @@
 package view
 
-import "fmt"
-
-templ Login(csrfToken string) {
-	@LoginWithErrors("", csrfToken)
+templ Login() {
+	@LoginWithErrors("")
 }
 
-templ LoginWithErrors(errorMsg string, csrfToken string) {
+templ LoginWithErrors(errorMsg string) {
 	<div id="login-form" class="flex justify-center">
 		<div class="max-w-md w-full card bg-base-100 shadow-xl p-8 border border-base-300">
 			<h2 class="text-3xl font-bold mb-2 text-primary text-center">Login</h2>
 			<p class="mb-6 text-base-content/70 text-center">Enter your credentials to continue.</p>
                 
 			<form hx-post="/login" hx-target="#login-form" 
-			hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
 			hx-swap="outerHTML">
 				if errorMsg != "" {
 						<div role="alert" class="alert alert-error">

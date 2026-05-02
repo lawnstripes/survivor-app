@@ -10,7 +10,7 @@ templ AdminNav(currentPath string) {
 	</div>
 }
 
-templ AdminSeasons(seasons []models.Season, csrfToken string, currentPath string) {
+templ AdminSeasons(seasons []models.Season, currentPath string) {
 	@AdminNav(currentPath)
 	<div class="mb-8">
 		<h1 class="text-3xl font-bold">Manage Seasons</h1>
@@ -25,7 +25,7 @@ templ AdminSeasons(seasons []models.Season, csrfToken string, currentPath string
 		</div>
 		<div>
 			<h2 class="text-xl font-bold mb-4">Add New Season</h2>
-			@AdminSeasonForm(csrfToken)
+			@AdminSeasonForm()
 		</div>
 	</div>
 }
@@ -82,12 +82,11 @@ templ AdminSeasonRow(season models.Season) {
 	</tr>
 }
 
-templ AdminSeasonEditForm(season models.Season, csrfToken string) {
+templ AdminSeasonEditForm(season models.Season) {
 	<tr id={ fmt.Sprintf("season-row-%d", season.ID) }>
 		<td colspan="6">
 			<form
 				hx-put={ fmt.Sprintf("/admin/seasons/%d", season.ID) }
-				hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
 				hx-target={ fmt.Sprintf("#season-row-%d", season.ID) }
 				hx-swap="outerHTML"
 				class="flex items-center gap-2"
@@ -113,10 +112,9 @@ templ AdminSeasonEditForm(season models.Season, csrfToken string) {
 	</tr>
 }
 
-templ AdminSeasonForm(csrfToken string) {
+templ AdminSeasonForm() {
 	<form
 		hx-post="/admin/seasons"
-		hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
 		hx-target="#seasons-table"
 		hx-swap="outerHTML"
 		hx-on::after-request="this.reset()"
@@ -151,7 +149,7 @@ templ AdminSeasonForm(csrfToken string) {
 	</form>
 }
 
-templ AdminSettings(appData models.AppData, seasons []models.Season, csrfToken string, currentPath string) {
+templ AdminSettings(appData models.AppData, seasons []models.Season, currentPath string) {
 	@AdminNav(currentPath)
 	<div class="mb-8">
 		<h1 class="text-3xl font-bold">Application Settings</h1>
@@ -159,14 +157,13 @@ templ AdminSettings(appData models.AppData, seasons []models.Season, csrfToken s
 	</div>
 
 	<div id="settings-form-container">
-		@AdminSettingsForm(appData, seasons, csrfToken)
+		@AdminSettingsForm(appData, seasons)
 	</div>
 }
 
-templ AdminSettingsForm(appData models.AppData, seasons []models.Season, csrfToken string) {
+templ AdminSettingsForm(appData models.AppData, seasons []models.Season) {
 	<form
 		hx-put="/admin/settings"
-		hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
 		hx-target="#settings-form-container"
 		hx-swap="innerHTML"
 		class="card bg-base-100 shadow p-6 space-y-4 max-w-md">
@@ -192,7 +189,7 @@ templ AdminSettingsForm(appData models.AppData, seasons []models.Season, csrfTok
 	</form>
 }
 
-templ AdminContestants(season models.Season, contestants []models.Contestant, csrfToken string, currentPath string) {
+templ AdminContestants(season models.Season, contestants []models.Contestant, currentPath string) {
 	@AdminNav(currentPath)
 	<div class="mb-8">
 		<div class="flex items-center gap-4">
@@ -217,11 +214,11 @@ templ AdminContestants(season models.Season, contestants []models.Contestant, cs
 		</div>
 		<div>
 			<h2 class="text-xl font-bold mb-4">Add New Contestant</h2>
-			@AdminContestantForm(season.ID, csrfToken)
+			@AdminContestantForm(season.ID)
 
 			<div class="mt-8">
 				<h2 class="text-xl font-bold mb-4">Bulk Add Contestants</h2>
-				@AdminContestantBulkForm(season.ID, csrfToken)
+				@AdminContestantBulkForm(season.ID)
 			</div>
 		</div>
 	</div>
@@ -277,12 +274,11 @@ templ AdminContestantRow(contestant models.Contestant) {
 	</tr>
 }
 
-templ AdminContestantEditForm(contestant models.Contestant, users []models.User, csrfToken string) {
+templ AdminContestantEditForm(contestant models.Contestant, users []models.User) {
 	<tr id={ fmt.Sprintf("contestant-row-%d", contestant.ID) }>
 		<td colspan="5">
 			<form
 				hx-put={ fmt.Sprintf("/admin/contestants/%d", contestant.ID) }
-				hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
 				hx-target={ fmt.Sprintf("#contestant-row-%d", contestant.ID) }
 				hx-swap="outerHTML"
 				class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end p-4 bg-base-200 rounded-lg">
@@ -341,10 +337,9 @@ templ AdminContestantEditForm(contestant models.Contestant, users []models.User,
 	</tr>
 }
 
-templ AdminContestantForm(seasonID int, csrfToken string) {
+templ AdminContestantForm(seasonID int) {
 	<form
 		hx-post={ fmt.Sprintf("/admin/seasons/%d/contestants", seasonID) }
-		hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
 		hx-target="#contestants-table"
 		hx-swap="outerHTML"
 		hx-on::after-request="this.reset()"
@@ -367,10 +362,9 @@ templ AdminContestantForm(seasonID int, csrfToken string) {
 	</form>
 }
 
-templ AdminContestantBulkForm(seasonID int, csrfToken string) {
+templ AdminContestantBulkForm(seasonID int) {
 	<form
 		hx-post={ fmt.Sprintf("/admin/seasons/%d/contestants/bulk", seasonID) }
-		hx-headers={ fmt.Sprintf("{\"X-CSRF-Token\" : \"%s\"}", csrfToken) }
 		hx-encoding="multipart/form-data"
 		hx-target="#contestants-table"
 		hx-swap="outerHTML"

@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS seasons (
 	episodes INTEGER,
 	logo_url TEXT
 );
+
 CREATE TABLE IF NOT EXISTS users (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	name TEXT NOT NULL,
@@ -16,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
 	password_hash TEXT,
 	is_admin BOOLEAN DEFAULT 0
 );
+
 CREATE TABLE IF NOT EXISTS contestants (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	name TEXT NOT NULL,
@@ -29,8 +31,16 @@ CREATE TABLE IF NOT EXISTS contestants (
 	season_id INTEGER REFERENCES seasons(id),
 	UNIQUE (name, season_id)
 );
+
 CREATE TABLE IF NOT EXISTS appdata (
 	id INTEGER PRIMARY KEY CHECK (id = 0),
 	draft_active BOOLEAN DEFAULT 0, 
 	current_season INTEGER REFERENCES seasons(id)
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    expires_at DATETIME NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );

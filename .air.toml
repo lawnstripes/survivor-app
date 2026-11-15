@@ -10,6 +10,7 @@ tmp_dir = "tmp"
   bin = "/tmp/main"
   cmd = "templ generate && npm run build:css && go build -o ./tmp/main ./cmd/server/main.go"
   delay = 1000
+  env_files = [".env"]
   entrypoint = ["./tmp/main"]
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []

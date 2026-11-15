@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"survivor-app/internal/db"
+	"survivor-app/internal/email"
 	"survivor-app/internal/filestore"
 	"survivor-app/internal/models"
 	"survivor-app/internal/sse"
@@ -18,10 +19,11 @@ import (
 )
 
 type Handler struct {
-	Store     db.Store
-	Broker    *sse.Broker
-	AppData   *models.AppData
-	FileStore filestore.FileStore
+	Store       db.Store
+	Broker      *sse.Broker
+	AppData     *models.AppData
+	FileStore   filestore.FileStore
+	EmailSender email.EmailSender
 }
 
 type contextKey string
@@ -30,8 +32,8 @@ const (
 	userKey contextKey = "user"
 )
 
-func NewHandler(store db.Store, broker *sse.Broker, appdata *models.AppData, fstore filestore.FileStore) *Handler {
-	return &Handler{Store: store, Broker: broker, AppData: appdata, FileStore: fstore}
+func NewHandler(store db.Store, broker *sse.Broker, appdata *models.AppData, fstore filestore.FileStore, emailSender email.EmailSender) *Handler {
+	return &Handler{Store: store, Broker: broker, AppData: appdata, FileStore: fstore, EmailSender: emailSender}
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -68,6 +70,10 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/login", h.HandleLoginGet)
 	r.Post("/login", h.HandleLoginPost)
 	r.Get("/logout", h.HandleLogout)
+	r.Get("/forgot-password", h.HandleLoginForgotPasswordGet)
+	r.Post("/forgot-password", h.HandleLoginForgotPasswordPost)
+	r.Get("/reset-password", h.HandlePasswordResetTokenGet)
+	r.Post("/reset-password", h.HandlePasswordResetPost)
 
 	r.Get("/draft", h.HandleDraftRoom)
 	r.Post("/draft/{id}", h.HandleDraftContestant)

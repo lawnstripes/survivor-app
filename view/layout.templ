@@ -7,7 +7,7 @@ templ SeasonSelector(seasons []models.Season, currentSeason models.Season, curre
         <select
             name="season_id"
             class="select select-bordered select-sm"
-            hx-get={ currentPath }
+            hx-get="/"
             hx-push-url="true"
             hx-target="main">
             for _, s := range seasons {

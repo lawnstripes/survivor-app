@@ -46,3 +46,7 @@ static/css/*
 
 # npm/node/garbo
 node_modules
+
+# local ssl
+cert.pem
+key.pem

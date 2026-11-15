@@ -9,8 +9,14 @@ type Store interface {
 	// User methods
 	GetUserBySlug(slug string) (models.User, error)
 	GetUserByID(id int) (models.User, error)
+	GetUserByEmail(email string) (models.User, error)
 	GetAllUsers() ([]models.User, error)
 	GetAllUsersNonBench() ([]models.User, error)
+	GetUserByResetToken(token string) (models.User, error)
+
+	UpdateUserResetToken(id int, token string) error
+	UpdateUserPassword(id int, passwordHash string) error
+	ClearUserResetToken(id int) error
 
 	// Season methods
 	GetSeasonByID(id int) (models.Season, error)

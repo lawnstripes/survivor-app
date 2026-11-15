@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"time"
 
 	"survivor-app/internal/models"
 
@@ -26,6 +27,37 @@ func (s *SqliteStore) GetUserByID(id int) (models.User, error) {
 	var user models.User
 	err := s.db.Get(&user, "SELECT * FROM users WHERE id = ?", id)
 	return user, err
+}
+
+func (s *SqliteStore) GetUserByEmail(email string) (models.User, error) {
+	var user models.User
+	err := s.db.Get(&user, "SELECT * FROM users WHERE email = ?", email)
+	return user, err
+}
+
+func (s *SqliteStore) GetUserByResetToken(token string) (models.User, error) {
+	var user models.User
+	err := s.db.Get(&user, "SELECT * FROM users WHERE reset_token = ?", token)
+	return user, err
+}
+
+func (s *SqliteStore) UpdateUserResetToken(id int, token string) error {
+	expiresAt := time.Now().UTC().Add(20 * time.Minute)
+	query := "UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?"
+	_, err := s.db.Exec(query, token, expiresAt, id)
+	return err
+}
+
+func (s *SqliteStore) UpdateUserPassword(id int, passwordHash string) error {
+	query := "UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires_at = NULL WHERE id = ?"
+	_, err := s.db.Exec(query, passwordHash, id)
+	return err
+}
+
+func (s *SqliteStore) ClearUserResetToken(id int) error {
+	query := "UPDATE users SET reset_token = NULL, reset_token_expires_at = NULL WHERE id = ?"
+	_, err := s.db.Exec(query, id)
+	return err
 }
 
 func (s *SqliteStore) GetAllUsers() ([]models.User, error) {

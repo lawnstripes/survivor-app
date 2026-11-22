@@ -64,7 +64,13 @@ templ Layout(title string, contents templ.Component, appData models.AppData, cur
                     <div class="dropdown dropdown-end">
                         <label tabindex="0" class="btn btn-ghost btn-circle avatar"> 
                             <div class="w-10 h-10 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2 overflow-hidden bg-base-300">
-                                <img src={ currentUser.AvatarURL } alt={ currentUser.Name } class="w-full h-full object-cover" />
+                                <img
+                                    src={ fmt.Sprintf("/static/users/avatars/%s.png", currentUser.Slug) }
+                                    srcset={ fmt.Sprintf("/static/users/avatars/sm/%s.png 400w, /static/users/avatars/%s.png 1024w", currentUser.Slug, currentUser.Slug) }
+                                    sizes="(max-width: 640px) 400px, 1024px"
+                                    alt={ currentUser.Name }
+                                    class="w-full h-full object-cover"
+                                />
                             </div>
                         </label>
                         <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">

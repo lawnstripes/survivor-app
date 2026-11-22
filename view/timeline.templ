@@ -51,7 +51,13 @@ templ UserColumn(user models.User, season models.Season, seasonWinner bool) {
             }
             <figure class="w-full aspect-square bg-neutral relative">
                 if user.ImageURL != "" {
-                    <img src={ user.AvatarURL } alt={ user.Name } class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300" />
+                    <img
+                        src={ fmt.Sprintf("/static/users/avatars/%s.png", user.Slug) }
+                        srcset={ fmt.Sprintf("/static/users/avatars/sm/%s.png 400w, /static/users/avatars/%s.png 1024w", user.Slug, user.Slug) }
+                        sizes="(max-width: 640px) 400px, 1024px"
+                        alt={ user.Name }
+                        class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
+                    />
                 }
             </figure>
             <div class="card-body items-center text-center bg-base-200 z-10 p-1 md:p-2 lg:p-3">
@@ -84,7 +90,7 @@ templ EliminationTimeline(rows []models.TimelineRow, season models.Season) {
                                 for _, p := range row.ActivePlayers {
                                     <div class="avatar tooltip" data-tip={ p.Name }>
                                         <div class={ templ.KV("ring-warning",p.IsWinner), templ.KV("ring-primary", !p.IsWinner), "w-10 md:w-14 lg:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-1 lg:ring-offset-2" } >
-                                            <img src={ p.ImageURL } alt={ p.Name } class="object-cover object-top" />
+                                            <img src={ p.SmallImageURL() } alt={ p.Name } class="object-cover object-top" />
                                         </div>
                                     </div>
                                 }
@@ -97,7 +103,7 @@ templ EliminationTimeline(rows []models.TimelineRow, season models.Season) {
                                         for _, p := range elims {
                                             <div class="avatar grayscale tooltip" data-tip={ p.Name }>
                                                 <div class="w-8 md:w-10 lg:w-14 rounded-full ring ring-error ring-offset-base-100 ring-offset-1">
-                                                    <img src={ p.ImageURL } alt={ p.Name } class="object-cover object-top" />
+                                                    <img src={ p.SmallImageURL() } alt={ p.Name } class="object-cover object-top" />
                                                 </div>
                                             </div>
                                         }

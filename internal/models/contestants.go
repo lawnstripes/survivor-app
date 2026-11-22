@@ -1,6 +1,7 @@
 package models
 
 import (
+	"path"
 	"strconv"
 )
 
@@ -20,4 +21,11 @@ type Contestant struct {
 
 func (c Contestant) TargetID() string {
 	return "contestant" + strconv.Itoa(c.ID)
+}
+
+func (c Contestant) SmallImageURL() string {
+	if c.ImageURL == "" {
+		return ""
+	}
+	return path.Join(path.Dir(c.ImageURL), "sm", path.Base(c.ImageURL))
 }

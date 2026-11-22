@@ -258,7 +258,7 @@ templ AdminContestantRow(contestant models.Contestant) {
 		<td>
 			<div class="avatar">
 				<div class="w-12 rounded-full">
-					<img src={ contestant.ImageURL } alt={ contestant.Name }/>
+					<img src={ contestant.SmallImageURL() } alt={ contestant.Name }/>
 				</div>
 			</div>
 		</td>

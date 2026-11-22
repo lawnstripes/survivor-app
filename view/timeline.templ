@@ -37,7 +37,7 @@ templ SeasonView(season models.Season, rows []models.TimelineRow, displayMode st
 templ UserColumn(user models.User, season models.Season, seasonWinner bool) {
     if user.Slug == "bench" {
         <div class="card card-compact bg-base-200/50 w-16 md:w-24 lg:w-32 shadow-sm border border-base-300 grayscale opacity-70">
-            <figure class="w-full aspect-square bg-neutral text-neutral-content flex items-center justify-center text-3xl md:text-4xl lg:text-5xl">
+            <figure class="w-16 h-16 md:w-24 md:h-24 lg:w-32 lg:h-32 bg-neutral text-neutral-content flex items-center justify-center text-3xl md:text-4xl lg:text-5xl">
                 🪑
             </figure>
             <div class="card-body items-center text-center p-1 md:p-2 lg:p-3">
@@ -49,14 +49,14 @@ templ UserColumn(user models.User, season models.Season, seasonWinner bool) {
             if seasonWinner {
                 <span class="badge text-xl">👑</span>
             }
-            <figure class="w-full aspect-square bg-neutral relative">
+            <figure class="w-16 h-16 md:w-24 md:h-24 lg:w-32 lg:h-32 bg-neutral relative overflow-hidden">
                 if user.ImageURL != "" {
                     <img
                         src={ fmt.Sprintf("/static/users/avatars/%s.png", user.Slug) }
                         srcset={ fmt.Sprintf("/static/users/avatars/sm/%s.png 400w, /static/users/avatars/%s.png 1024w", user.Slug, user.Slug) }
                         sizes="(max-width: 640px) 400px, 1024px"
                         alt={ user.Name }
-                        class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
+                        class="w-full h-full aspect-square object-cover object-top group-hover:scale-105 transition-transform duration-300"
                     />
                 }
             </figure>
@@ -89,8 +89,8 @@ templ EliminationTimeline(rows []models.TimelineRow, season models.Season) {
                             <div class="flex -space-x-2">
                                 for _, p := range row.ActivePlayers {
                                     <div class="avatar tooltip" data-tip={ p.Name }>
-                                        <div class={ templ.KV("ring-warning",p.IsWinner), templ.KV("ring-primary", !p.IsWinner), "w-10 md:w-14 lg:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-1 lg:ring-offset-2" } >
-                                            <img src={ p.SmallImageURL() } alt={ p.Name } class="object-cover object-top" />
+                                        <div class={ templ.KV("ring-warning",p.IsWinner), templ.KV("ring-primary", !p.IsWinner), "w-10 h-10 md:w-14 md:h-14 lg:w-20 lg:h-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-1 lg:ring-offset-2" } >
+                                            <img src={ p.SmallImageURL() } alt={ p.Name } class="w-full h-full aspect-square object-cover object-top" />
                                         </div>
                                     </div>
                                 }
@@ -102,8 +102,8 @@ templ EliminationTimeline(rows []models.TimelineRow, season models.Season) {
                                     <div class="flex flex-col gap-1 lg:gap-2 items-center">
                                         for _, p := range elims {
                                             <div class="avatar grayscale tooltip" data-tip={ p.Name }>
-                                                <div class="w-8 md:w-10 lg:w-14 rounded-full ring ring-error ring-offset-base-100 ring-offset-1">
-                                                    <img src={ p.SmallImageURL() } alt={ p.Name } class="object-cover object-top" />
+                                                <div class="w-8 h-8 md:w-10 md:h-10 lg:w-14 lg:h-14 rounded-full ring ring-error ring-offset-base-100 ring-offset-1">
+                                                    <img src={ p.SmallImageURL() } alt={ p.Name } class="w-full h-full aspect-square object-cover object-top" />
                                                 </div>
                                             </div>
                                         }

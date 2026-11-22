@@ -257,8 +257,8 @@ templ AdminContestantRow(contestant models.Contestant) {
 		<td>{ contestant.DraftedBy }</td>
 		<td>
 			<div class="avatar">
-				<div class="w-12 rounded-full">
-					<img src={ contestant.SmallImageURL() } alt={ contestant.Name }/>
+				<div class="w-12 h-12 rounded-full">
+					<img src={ contestant.SmallImageURL() } alt={ contestant.Name } class="w-full h-full aspect-square object-cover object-top"/>
 				</div>
 			</div>
 		</td>

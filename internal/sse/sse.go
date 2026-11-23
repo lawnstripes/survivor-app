@@ -42,11 +42,16 @@ func (b *Broker) Stream(w http.ResponseWriter, r *http.Request) {
 		close(messageChan)
 	}()
 
+	// Flush initial SSE comment immediately so fetch()-based SSE clients (htmx 4 hx-sse)
+	// receive the 200 OK + text/event-stream headers right away.
+	fmt.Fprintf(w, ": connected\n\n")
+	w.(http.Flusher).Flush()
+
 	for {
 		select {
 		case msg := <-messageChan:
 			log.Printf("sent %s", msg)
-			fmt.Fprintf(w, "data: %s\n\n", msg)
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", msg, msg)
 			w.(http.Flusher).Flush()
 		case <-r.Context().Done():
 			return

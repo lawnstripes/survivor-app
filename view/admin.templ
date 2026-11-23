@@ -117,8 +117,8 @@ templ AdminSeasonForm() {
 	<form
 		hx-post="/admin/seasons"
 		hx-target="#seasons-table"
-		hx-swap="outerHTML"
-		hx-on::after-request="this.reset()"
+		hx-swap="innerHTML"
+		hx-on::after:request="this.reset()"
 		class="card bg-base-100 shadow p-6 space-y-4">
 		<div class="form-control">
 			<label class="label"><span class="label-text">Season Number</span></label>
@@ -342,8 +342,8 @@ templ AdminContestantForm(seasonID int) {
 	<form
 		hx-post={ fmt.Sprintf("/admin/seasons/%d/contestants", seasonID) }
 		hx-target="#contestants-table"
-		hx-swap="outerHTML"
-		hx-on::after-request="this.reset()"
+		hx-swap="innerHTML"
+		hx-on::after:request="this.reset()"
 		class="card bg-base-100 shadow p-6 space-y-4">
 		<div class="form-control">
 			<label class="label"><span class="label-text">Full Name</span></label>
@@ -368,8 +368,8 @@ templ AdminContestantBulkForm(seasonID int) {
 		hx-post={ fmt.Sprintf("/admin/seasons/%d/contestants/bulk", seasonID) }
 		hx-encoding="multipart/form-data"
 		hx-target="#contestants-table"
-		hx-swap="outerHTML"
-		hx-on::after-request="this.reset()"
+		hx-swap="innerHTML"
+		hx-on::after:request="this.reset()"
 		class="card bg-base-100 shadow p-6 space-y-4">
 		<div class="form-control">
 			<label class="label"><span class="label-text">Contestant CSV File</span></label>

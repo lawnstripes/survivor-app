@@ -479,11 +479,27 @@ func (s *SqliteStore) GetDraftBoard(seasonID int) (models.DraftBoard, error) {
 		return board, err
 	}
 
+	contestantsByID := make(map[int]models.Contestant, len(contestants))
+	for _, c := range contestants {
+		contestantsByID[c.ID] = c
+	}
+
 	board.DraftedByUser = make(map[int][]models.Contestant)
+	addedContestantIDs := make(map[int]bool, len(picks))
+
+	// First add drafted contestants in exact pick_number order so round slots (R1, R2, ...) match pick order
+	for _, p := range picks {
+		if c, ok := contestantsByID[p.ContestantID]; ok && c.OwnerID != nil && *c.OwnerID == p.UserID {
+			board.DraftedByUser[p.UserID] = append(board.DraftedByUser[p.UserID], c)
+			addedContestantIDs[c.ID] = true
+		}
+	}
+
+	// Then categorize remaining contestants (either available or manually assigned outside draft_picks)
 	for _, c := range contestants {
 		if c.OwnerID == nil {
 			board.AvailableContestants = append(board.AvailableContestants, c)
-		} else {
+		} else if !addedContestantIDs[c.ID] {
 			board.DraftedByUser[*c.OwnerID] = append(board.DraftedByUser[*c.OwnerID], c)
 		}
 	}

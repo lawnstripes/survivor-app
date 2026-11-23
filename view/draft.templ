@@ -13,28 +13,19 @@ script openDraftConfirmModal(contestantID int) {
 	}
 }
 
-script connectDraftSSE() {
-	if (window.__draftEventSource) {
-		window.__draftEventSource.close();
-	}
-	const es = new EventSource("/events");
-	window.__draftEventSource = es;
-	es.onmessage = function() {
-		const board = document.getElementById("draft-board-container");
-		if (!board) {
-			es.close();
-			return;
-		}
-		htmx.trigger(board, "draft:update");
-	};
-}
-
 templ DraftRoom(board models.DraftBoard, currentUser models.User) {
-	<div class="space-y-8 pb-12">
-		<div id="draft-board-container" hx-get="/draft/board" hx-trigger="draft:update, sse:message" hx-swap="innerHTML">
+	<div
+		id="draft-sse"
+		hx-sse:connect="/events"
+		hx-config='{"sse":{"pauseOnBackground":false}}'
+		class="space-y-8 pb-12">
+		<div
+			id="draft-board-container"
+			hx-get="/draft/board"
+			hx-trigger="update from:#draft-sse, htmx:sse:after:connection from:#draft-sse"
+			hx-swap="innerHTML">
 			@DraftBoardView(board, currentUser)
 		</div>
-		@connectDraftSSE()
 	</div>
 }
 

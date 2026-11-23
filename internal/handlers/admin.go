@@ -204,44 +204,53 @@ func (h *Handler) HandleAdminContestantCreate(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Max upload size: 10MB. This will also parse the form values.
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		http.Error(w, "File too large or invalid form data", http.StatusBadRequest)
-		return
+	// Parse multipart form if multipart, otherwise standard URL-encoded form
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		if err := r.ParseMultipartForm(10 << 20); err != nil {
+			http.Error(w, "File too large or invalid form data", http.StatusBadRequest)
+			return
+		}
+	} else {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
 	}
 
 	name := r.FormValue("name")
 	knownBy := r.FormValue("known_by")
+	imageURL := r.FormValue("image_url")
 
-	var imageURL string
-	file, header, err := r.FormFile("image_file")
-	// http.ErrMissingFile is okay, it just means no file was uploaded.
-	if err != nil && err != http.ErrMissingFile {
-		http.Error(w, "Could not get uploaded file", http.StatusBadRequest)
-		return
-	}
-
-	if file != nil {
-		defer file.Close()
-
-		season, err := h.Store.GetSeasonByID(seasonID)
-		if err != nil {
-			http.Error(w, "Could not find season for upload path", http.StatusInternalServerError)
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		file, header, err := r.FormFile("image_file")
+		// http.ErrMissingFile is okay, it just means no file was uploaded.
+		if err != nil && err != http.ErrMissingFile {
+			http.Error(w, "Could not get uploaded file", http.StatusBadRequest)
 			return
 		}
 
-		// e.g., "contestants/season_49/jake_latimer.jpg"
-		objectName := fmt.Sprintf("contestants/season_%d/%s%s",
-			season.Season,
-			slugify(knownBy),
-			filepath.Ext(header.Filename),
-		)
+		if file != nil {
+			defer file.Close()
 
-		imageURL, err = h.FileStore.Upload(file, objectName)
-		if err != nil {
-			log.Printf("Failed to upload file: %v", err)
-			http.Error(w, "Failed to upload file", http.StatusInternalServerError)
-			return
+			season, err := h.Store.GetSeasonByID(seasonID)
+			if err != nil {
+				http.Error(w, "Could not find season for upload path", http.StatusInternalServerError)
+				return
+			}
+
+			// e.g., "contestants/season_49/jake_latimer.jpg"
+			objectName := fmt.Sprintf("contestants/season_%d/%s%s",
+				season.Season,
+				slugify(knownBy),
+				filepath.Ext(header.Filename),
+			)
+
+			imageURL, err = h.FileStore.Upload(file, objectName)
+			if err != nil {
+				log.Printf("Failed to upload file: %v", err)
+				http.Error(w, "Failed to upload file", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 

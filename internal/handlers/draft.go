@@ -70,13 +70,13 @@ func (h *Handler) HandleDraftContestant(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if !board.CanUserPick(currentUser) {
-		http.Error(w, "It is not currently your turn to pick", http.StatusForbidden)
+		view.DraftBoardView(board, currentUser).Render(r.Context(), w)
 		return
 	}
 
 	onClockUser, ok := board.OnTheClock()
 	if !ok {
-		http.Error(w, "No active pick slot available", http.StatusConflict)
+		view.DraftBoardView(board, currentUser).Render(r.Context(), w)
 		return
 	}
 
@@ -89,6 +89,12 @@ func (h *Handler) HandleDraftContestant(w http.ResponseWriter, r *http.Request) 
 		board.TotalPicks(),
 	)
 	if err != nil {
+		// Re-render current board state so HTMX 4 doesn't swap a plain-text error into #draft-board-container
+		if freshBoard, loadErr := h.Store.GetDraftBoard(seasonID); loadErr == nil {
+			view.DraftBoardView(freshBoard, currentUser).Render(r.Context(), w)
+			return
+		}
+		w.Header().Set("HX-Reswap", "none")
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}

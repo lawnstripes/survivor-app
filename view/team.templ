@@ -16,7 +16,9 @@ templ Team(contestants []models.Contestant, season models.Season) {
     </div>
 </div>
     
-    <div hx-get="/contestant-grid" hx-trigger="sse:message" hx-target="this">
-        @ContestantGrid(contestants)
+    <div id="team-sse" hx-sse:connect="/events">
+        <div hx-get="/contestant-grid" hx-trigger="update from:#team-sse" hx-target="this">
+            @ContestantGrid(contestants)
+        </div>
     </div>
 }

@@ -1,6 +1,8 @@
 package db
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -207,4 +209,284 @@ func (s *SqliteStore) GetSessionByToken(token string) (*models.Session, error) {
 func (s *SqliteStore) DeleteSessionByToken(token string) error {
 	_, err := s.db.Exec("DELETE FROM sessions WHERE token = ?", token)
 	return err
+}
+
+func (s *SqliteStore) GetOrCreateDraftState(seasonID int) (models.DraftState, error) {
+	var state models.DraftState
+	err := s.db.Get(&state, "SELECT season_id, status, rounds, current_pick FROM drafts WHERE season_id = ?", seasonID)
+	if err == nil {
+		return state, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return state, err
+	}
+
+	state = models.DraftState{
+		SeasonID:    seasonID,
+		Status:      models.DraftStatusSetup,
+		Rounds:      3,
+		CurrentPick: 1,
+	}
+	_, err = s.db.Exec(
+		"INSERT INTO drafts (season_id, status, rounds, current_pick) VALUES (?, ?, ?, ?)",
+		state.SeasonID, state.Status, state.Rounds, state.CurrentPick,
+	)
+	if err != nil {
+		return state, err
+	}
+
+	// Seed default draft_order with all non-bench users if empty
+	var count int
+	if err := s.db.Get(&count, "SELECT COUNT(*) FROM draft_order WHERE season_id = ?", seasonID); err == nil && count == 0 {
+		users, err := s.GetAllUsersNonBench()
+		if err == nil && len(users) > 0 {
+			ids := make([]int, len(users))
+			for i, u := range users {
+				ids[i] = u.ID
+			}
+			_ = s.SaveDraftOrder(seasonID, ids)
+		}
+	}
+
+	return state, nil
+}
+
+func (s *SqliteStore) UpdateDraftState(state models.DraftState) error {
+	_, err := s.db.Exec(
+		"UPDATE drafts SET status = ?, rounds = ?, current_pick = ? WHERE season_id = ?",
+		state.Status, state.Rounds, state.CurrentPick, state.SeasonID,
+	)
+	return err
+}
+
+func (s *SqliteStore) GetDraftOrder(seasonID int) ([]models.User, error) {
+	var users []models.User
+	query := `
+		SELECT u.*
+		FROM draft_order do
+		JOIN users u ON do.user_id = u.id
+		WHERE do.season_id = ?
+		ORDER BY do.position ASC
+	`
+	err := s.db.Select(&users, query, seasonID)
+	return users, err
+}
+
+func (s *SqliteStore) SaveDraftOrder(seasonID int, userIDs []int) error {
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec("DELETE FROM draft_order WHERE season_id = ?", seasonID); err != nil {
+		return err
+	}
+
+	for i, userID := range userIDs {
+		if _, err := tx.Exec(
+			"INSERT INTO draft_order (season_id, user_id, position) VALUES (?, ?, ?)",
+			seasonID, userID, i+1,
+		); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *SqliteStore) GetDraftPicks(seasonID int) ([]models.DraftPick, error) {
+	var picks []models.DraftPick
+	query := `
+		SELECT
+			dp.id,
+			dp.season_id,
+			dp.pick_number,
+			dp.round,
+			dp.user_id,
+			dp.contestant_id,
+			dp.created_at,
+			u.name AS user_name,
+			u.slug AS user_slug,
+			c.name AS contestant_name,
+			COALESCE(NULLIF(c.known_by, ''), c.name) AS contestant_known_by,
+			COALESCE(c.image_url, '') AS contestant_image_url
+		FROM draft_picks dp
+		JOIN users u ON dp.user_id = u.id
+		JOIN contestants c ON dp.contestant_id = c.id
+		WHERE dp.season_id = ?
+		ORDER BY dp.pick_number ASC
+	`
+	err := s.db.Select(&picks, query, seasonID)
+	return picks, err
+}
+
+func (s *SqliteStore) MakeDraftPick(seasonID, pickNumber, round, userID, contestantID, totalPicks int) (models.DraftState, error) {
+	var state models.DraftState
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return state, err
+	}
+	defer tx.Rollback()
+
+	if err := tx.Get(&state, "SELECT season_id, status, rounds, current_pick FROM drafts WHERE season_id = ?", seasonID); err != nil {
+		return state, err
+	}
+	if state.Status != models.DraftStatusLive {
+		return state, fmt.Errorf("draft is not currently live (status: %s)", state.Status)
+	}
+	if state.CurrentPick != pickNumber {
+		return state, fmt.Errorf("pick number mismatch: expected %d, got %d", state.CurrentPick, pickNumber)
+	}
+
+	var existingOwner *int
+	if err := tx.Get(&existingOwner, "SELECT owner_id FROM contestants WHERE id = ? AND season_id = ?", contestantID, seasonID); err != nil {
+		return state, fmt.Errorf("contestant not found for this season: %w", err)
+	}
+	if existingOwner != nil {
+		return state, errors.New("contestant has already been drafted")
+	}
+
+	if _, err := tx.Exec(
+		"INSERT INTO draft_picks (season_id, pick_number, round, user_id, contestant_id) VALUES (?, ?, ?, ?, ?)",
+		seasonID, pickNumber, round, userID, contestantID,
+	); err != nil {
+		return state, err
+	}
+
+	if _, err := tx.Exec(
+		"UPDATE contestants SET owner_id = ?, added_episode = 1 WHERE id = ? AND season_id = ?",
+		userID, contestantID, seasonID,
+	); err != nil {
+		return state, err
+	}
+
+	state.CurrentPick = pickNumber + 1
+	if totalPicks > 0 && pickNumber >= totalPicks {
+		state.Status = models.DraftStatusCompleted
+	}
+
+	if _, err := tx.Exec(
+		"UPDATE drafts SET status = ?, current_pick = ? WHERE season_id = ?",
+		state.Status, state.CurrentPick, seasonID,
+	); err != nil {
+		return state, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return state, err
+	}
+	return state, nil
+}
+
+func (s *SqliteStore) UndoLastDraftPick(seasonID int) (models.DraftState, error) {
+	var state models.DraftState
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return state, err
+	}
+	defer tx.Rollback()
+
+	if err := tx.Get(&state, "SELECT season_id, status, rounds, current_pick FROM drafts WHERE season_id = ?", seasonID); err != nil {
+		return state, err
+	}
+
+	var lastPick models.DraftPick
+	err = tx.Get(&lastPick, "SELECT id, season_id, pick_number, round, user_id, contestant_id FROM draft_picks WHERE season_id = ? ORDER BY pick_number DESC LIMIT 1", seasonID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return state, errors.New("no picks to undo")
+		}
+		return state, err
+	}
+
+	if _, err := tx.Exec("UPDATE contestants SET owner_id = NULL WHERE id = ? AND season_id = ?", lastPick.ContestantID, seasonID); err != nil {
+		return state, err
+	}
+
+	if _, err := tx.Exec("DELETE FROM draft_picks WHERE id = ?", lastPick.ID); err != nil {
+		return state, err
+	}
+
+	state.CurrentPick = lastPick.PickNumber
+	if state.Status == models.DraftStatusCompleted {
+		state.Status = models.DraftStatusLive
+	}
+
+	if _, err := tx.Exec("UPDATE drafts SET status = ?, current_pick = ? WHERE season_id = ?", state.Status, state.CurrentPick, seasonID); err != nil {
+		return state, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return state, err
+	}
+	return state, nil
+}
+
+func (s *SqliteStore) ResetDraft(seasonID int) error {
+	if _, err := s.GetOrCreateDraftState(seasonID); err != nil {
+		return err
+	}
+
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec("DELETE FROM draft_picks WHERE season_id = ?", seasonID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("UPDATE contestants SET owner_id = NULL WHERE season_id = ?", seasonID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("UPDATE drafts SET status = ?, current_pick = 1 WHERE season_id = ?", models.DraftStatusSetup, seasonID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (s *SqliteStore) GetDraftBoard(seasonID int) (models.DraftBoard, error) {
+	var board models.DraftBoard
+
+	season, err := s.GetSeasonByID(seasonID)
+	if err != nil {
+		return board, err
+	}
+	board.Season = season
+
+	state, err := s.GetOrCreateDraftState(seasonID)
+	if err != nil {
+		return board, err
+	}
+	board.State = state
+
+	order, err := s.GetDraftOrder(seasonID)
+	if err != nil {
+		return board, err
+	}
+	board.Order = order
+
+	picks, err := s.GetDraftPicks(seasonID)
+	if err != nil {
+		return board, err
+	}
+	board.Picks = picks
+
+	contestants, err := s.GetContestantsBySeasonID(seasonID)
+	if err != nil {
+		return board, err
+	}
+
+	board.DraftedByUser = make(map[int][]models.Contestant)
+	for _, c := range contestants {
+		if c.OwnerID == nil {
+			board.AvailableContestants = append(board.AvailableContestants, c)
+		} else {
+			board.DraftedByUser[*c.OwnerID] = append(board.DraftedByUser[*c.OwnerID], c)
+		}
+	}
+
+	return board, nil
 }

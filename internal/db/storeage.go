@@ -41,4 +41,15 @@ type Store interface {
 	CreateSession(session *models.Session) error
 	GetSessionByToken(token string) (*models.Session, error)
 	DeleteSessionByToken(token string) error
+
+	// Draft methods
+	GetOrCreateDraftState(seasonID int) (models.DraftState, error)
+	UpdateDraftState(state models.DraftState) error
+	GetDraftOrder(seasonID int) ([]models.User, error)
+	SaveDraftOrder(seasonID int, userIDs []int) error
+	GetDraftPicks(seasonID int) ([]models.DraftPick, error)
+	MakeDraftPick(seasonID, pickNumber, round, userID, contestantID, totalPicks int) (models.DraftState, error)
+	UndoLastDraftPick(seasonID int) (models.DraftState, error)
+	ResetDraft(seasonID int) error
+	GetDraftBoard(seasonID int) (models.DraftBoard, error)
 }

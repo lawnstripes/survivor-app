@@ -1,16 +1,430 @@
 package view
 
-import "survivor-app/internal/models"
+import (
+	"fmt"
+	"strconv"
+	"survivor-app/internal/models"
+)
 
-templ DraftRoom(contestants []models.Contestant) {
-    <div hx-ext="sse" sse-connect="/events">
-        <div class="flex justify-between items-center mb-8">
-            <h1>Live War Room: Season 51</h1>
-            <span class="badge badge-error animate-pulse">LIVE</span>
-        </div>
-        
-        <div id="grid-container" hx-get="/contestant-grid" hx-trigger="sse:message">
-            @ContestantGrid(contestants)
-        </div>
-    </div>
+script openDraftConfirmModal(contestantID int) {
+	const dialog = document.getElementById("confirm-draft-" + contestantID);
+	if (dialog) {
+		dialog.showModal();
+	}
+}
+
+script connectDraftSSE() {
+	if (window.__draftEventSource) {
+		window.__draftEventSource.close();
+	}
+	const es = new EventSource("/events");
+	window.__draftEventSource = es;
+	es.onmessage = function() {
+		const board = document.getElementById("draft-board-container");
+		if (!board) {
+			es.close();
+			return;
+		}
+		htmx.trigger(board, "draft:update");
+	};
+}
+
+templ DraftRoom(board models.DraftBoard, currentUser models.User) {
+	<div class="space-y-8 pb-12">
+		<div id="draft-board-container" hx-get="/draft/board" hx-trigger="draft:update, sse:message" hx-swap="innerHTML">
+			@DraftBoardView(board, currentUser)
+		</div>
+		@connectDraftSSE()
+	</div>
+}
+
+templ DraftBoardView(board models.DraftBoard, currentUser models.User) {
+	<div class="space-y-8">
+		<!-- Top Header & Admin Quick Controls -->
+		<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+			<div class="flex flex-wrap items-center gap-3">
+				<h1 class="text-3xl font-bold">Live War Room: { board.Season.Title }</h1>
+				switch board.State.Status {
+					case models.DraftStatusLive:
+						<span class="badge badge-error animate-pulse font-bold gap-1.5 py-3 px-3">
+							<span class="w-2 h-2 rounded-full bg-current"></span>
+							LIVE
+						</span>
+					case models.DraftStatusPaused:
+						<span class="badge badge-warning font-bold py-3 px-3">PAUSED</span>
+					case models.DraftStatusCompleted:
+						<span class="badge badge-success font-bold py-3 px-3">COMPLETED</span>
+					default:
+						<span class="badge badge-neutral font-bold py-3 px-3">SETUP</span>
+				}
+			</div>
+
+			if currentUser.IsAdmin {
+				<div class="flex flex-wrap items-center gap-2 bg-base-100 px-3 py-2 rounded-xl shadow-sm border border-base-content/10">
+					<span class="text-xs font-semibold uppercase tracking-wider text-base-content/60 mr-1">Admin:</span>
+					if board.State.Status == models.DraftStatusSetup {
+						<button
+							hx-post="/admin/draft/status"
+							hx-vals='{"status":"live","source":"warroom"}'
+							hx-swap="none"
+							disabled?={ len(board.Order) == 0 }
+							class="btn btn-success btn-xs">
+							Start Draft
+						</button>
+					}
+					if board.State.Status == models.DraftStatusLive {
+						<button
+							hx-post="/admin/draft/status"
+							hx-vals='{"status":"paused","source":"warroom"}'
+							hx-swap="none"
+							class="btn btn-warning btn-xs">
+							Pause
+						</button>
+					}
+					if board.State.Status == models.DraftStatusPaused {
+						<button
+							hx-post="/admin/draft/status"
+							hx-vals='{"status":"live","source":"warroom"}'
+							hx-swap="none"
+							class="btn btn-success btn-xs">
+							Resume
+						</button>
+					}
+					if len(board.Picks) > 0 {
+						<button
+							hx-post="/admin/draft/undo"
+							hx-vals='{"source":"warroom"}'
+							hx-swap="none"
+							hx-confirm="Undo the last pick?"
+							class="btn btn-secondary btn-xs">
+							Undo Last Pick
+						</button>
+					}
+					<a href="/admin/draft" class="btn btn-ghost btn-xs">Setup &rarr;</a>
+				</div>
+			}
+		</div>
+
+		<!-- Status Callout Banner: On the Clock / Paused / Completed -->
+		if board.State.Status == models.DraftStatusCompleted {
+			<div class="card bg-gradient-to-r from-success/20 via-base-100 to-primary/20 border border-success/40 shadow-xl">
+				<div class="card-body flex flex-col md:flex-row items-center justify-between gap-6">
+					<div class="space-y-1 text-center md:text-left">
+						<h2 class="text-2xl font-bold text-success">Draft Complete!</h2>
+						<p class="text-base-content/80">
+							All { fmt.Sprint(board.TotalPicks()) } picks across { fmt.Sprint(board.State.Rounds) } rounds are locked in.
+							if len(board.AvailableContestants) > 0 {
+								<span> { fmt.Sprint(len(board.AvailableContestants)) } remaining contestants have been placed on the Sit-Out Bench.</span>
+							}
+						</p>
+					</div>
+					<a href="/" class="btn btn-primary">View Season Timeline &rarr;</a>
+				</div>
+			</div>
+		} else if onClock, ok := board.OnTheClock(); ok {
+			<div class={
+				"card bg-base-100 shadow-xl border-2 transition-all",
+				templ.KV("border-primary ring-2 ring-primary/30", currentUser.ID == onClock.ID && board.State.Status == models.DraftStatusLive),
+				templ.KV("border-warning/60", board.State.Status == models.DraftStatusPaused),
+				templ.KV("border-base-content/10", currentUser.ID != onClock.ID && board.State.Status != models.DraftStatusPaused),
+			}>
+				<div class="card-body p-5 md:p-6">
+					<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+						<!-- On the Clock Player -->
+						<div class="flex items-center gap-4">
+							<div class="avatar">
+								<div class="w-16 h-16 md:w-20 md:h-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2 overflow-hidden bg-base-300">
+									<img
+										src={ fmt.Sprintf("/static/users/avatars/%s.png", onClock.Slug) }
+										srcset={ fmt.Sprintf("/static/users/avatars/sm/%s.png 400w, /static/users/avatars/%s.png 1024w", onClock.Slug, onClock.Slug) }
+										sizes="80px"
+										alt={ onClock.Name }
+										class="w-full h-full aspect-square object-cover object-top"/>
+								</div>
+							</div>
+							<div class="space-y-1">
+								<div class="flex flex-wrap items-center gap-2">
+									<span class="text-xs font-bold uppercase tracking-wider text-primary">
+										Round { fmt.Sprint(board.CurrentRound()) } of { fmt.Sprint(board.State.Rounds) } &bull; Overall Pick #{ fmt.Sprint(board.State.CurrentPick) } of { fmt.Sprint(board.TotalPicks()) }
+									</span>
+									if board.State.Status == models.DraftStatusLive && currentUser.ID == onClock.ID {
+										<span class="badge badge-primary badge-sm font-bold animate-bounce">YOUR TURN!</span>
+									} else if board.State.Status == models.DraftStatusLive && currentUser.IsAdmin {
+										<span class="badge badge-secondary badge-outline badge-sm">Admin Proxy Active</span>
+									}
+								</div>
+								<h2 class="text-2xl md:text-3xl font-extrabold">
+									{ onClock.Name } <span class="font-normal text-base-content/60 text-lg">is on the clock</span>
+								</h2>
+								if board.State.Status == models.DraftStatusPaused {
+									<p class="text-sm text-warning font-medium">The draft is currently paused by the commissioner.</p>
+								} else if board.State.Status == models.DraftStatusSetup {
+									<p class="text-sm text-base-content/60">Waiting for the commissioner to start the draft...</p>
+								} else if currentUser.ID == onClock.ID {
+									<p class="text-sm text-base-content/80">Select a contestant below to lock in your pick.</p>
+								}
+							</div>
+						</div>
+
+						<!-- On Deck Player -->
+						if onDeck, hasDeck := board.OnDeck(); hasDeck {
+							<div class="flex items-center gap-3 bg-base-200/70 px-4 py-3 rounded-xl self-start lg:self-center">
+								<div class="avatar">
+									<div class="w-10 h-10 rounded-full overflow-hidden bg-base-300">
+										<img
+											src={ fmt.Sprintf("/static/users/avatars/sm/%s.png", onDeck.Slug) }
+											alt={ onDeck.Name }
+											class="w-full h-full aspect-square object-cover object-top"/>
+									</div>
+								</div>
+								<div>
+									<div class="text-xs uppercase tracking-wider text-base-content/60 font-semibold">On Deck (Pick #{ fmt.Sprint(board.State.CurrentPick + 1) })</div>
+									<div class="font-bold">{ onDeck.Name }</div>
+								</div>
+							</div>
+						} else {
+							<div class="bg-base-200/70 px-4 py-3 rounded-xl self-start lg:self-center text-sm font-semibold text-warning">
+								Final Pick of the Draft!
+							</div>
+						}
+					</div>
+				</div>
+			</div>
+		}
+
+		<!-- Horizontal Snake Pick Ticker -->
+		if len(board.Order) > 0 {
+			<div class="card bg-base-100 shadow p-4">
+				<div class="flex items-center justify-between mb-2">
+					<h3 class="text-xs font-bold uppercase tracking-wider text-base-content/60">Snake Pick Ticker</h3>
+					<span class="text-xs text-base-content/60">{ fmt.Sprint(len(board.Picks)) } / { fmt.Sprint(board.TotalPicks()) } Picks Made</span>
+				</div>
+				<div class="flex gap-2 overflow-x-auto pb-2">
+					for _, slot := range board.Schedule() {
+						<div class={
+							"flex items-center gap-2.5 px-3 py-2 rounded-lg border shrink-0 min-w-[155px] transition-all",
+							templ.KV("bg-primary/15 border-primary ring-1 ring-primary", slot.PickNumber == board.State.CurrentPick && board.State.Status != models.DraftStatusCompleted),
+							templ.KV("bg-base-200/60 border-base-300 opacity-85", slot.Pick != nil),
+							templ.KV("bg-base-100 border-base-300 opacity-60", slot.Pick == nil && (slot.PickNumber != board.State.CurrentPick || board.State.Status == models.DraftStatusCompleted)),
+						}>
+							<div class="text-center pr-1 border-r border-base-content/10">
+								<div class="text-[10px] uppercase text-base-content/60 font-mono">R{ fmt.Sprint(slot.Round) }.{ fmt.Sprint(slot.PickInRound) }</div>
+								<div class="text-xs font-extrabold font-mono">#{ fmt.Sprint(slot.PickNumber) }</div>
+							</div>
+							if slot.Pick != nil {
+								<div class="avatar">
+									<div class="w-8 h-8 rounded-full ring-1 ring-success overflow-hidden bg-base-300">
+										<img
+											src={ slot.Pick.ContestantSmallImageURL() }
+											alt={ slot.Pick.ContestantKnownBy }
+											class="w-full h-full aspect-square object-cover object-top"/>
+									</div>
+								</div>
+								<div class="min-w-0">
+									<div class="text-xs font-bold truncate">{ slot.Pick.ContestantKnownBy }</div>
+									<div class="text-[11px] text-base-content/60 truncate">{ slot.User.Name }</div>
+								</div>
+							} else {
+								<div class="avatar">
+									<div class="w-8 h-8 rounded-full overflow-hidden bg-base-300">
+										<img
+											src={ fmt.Sprintf("/static/users/avatars/sm/%s.png", slot.User.Slug) }
+											alt={ slot.User.Name }
+											class="w-full h-full aspect-square object-cover object-top"/>
+									</div>
+								</div>
+								<div class="min-w-0">
+									<div class="text-xs font-semibold truncate">{ slot.User.Name }</div>
+									if slot.PickNumber == board.State.CurrentPick && board.State.Status != models.DraftStatusCompleted {
+										<div class="text-[11px] text-primary font-bold">On the Clock</div>
+									} else {
+										<div class="text-[11px] text-base-content/40 italic">Upcoming</div>
+									}
+								</div>
+							}
+						</div>
+					}
+				</div>
+			</div>
+		}
+
+		<!-- Team Rosters Section (Drafted Contestants move here) -->
+		if len(board.Order) > 0 {
+			<div class="space-y-4">
+				<div class="flex items-center justify-between">
+					<h2 class="text-xl font-bold">Team Rosters</h2>
+					<span class="text-sm text-base-content/60">Snake Order (1 &rarr; { fmt.Sprint(len(board.Order)) })</span>
+				</div>
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+					for i, u := range board.Order {
+						@DraftTeamCard(u, i+1, board)
+					}
+				</div>
+			</div>
+		}
+
+		<!-- Available Contestants Pool -->
+		<div class="space-y-4">
+			<div class="flex items-center justify-between">
+				<div class="flex items-center gap-3">
+					<h2 class="text-xl font-bold">
+						if board.State.Status == models.DraftStatusCompleted {
+							Sit-Out Bench (Undrafted)
+						} else {
+							Available Contestants
+						}
+					</h2>
+					<span class="badge badge-neutral">{ fmt.Sprint(len(board.AvailableContestants)) } Remaining</span>
+				</div>
+			</div>
+
+			if len(board.AvailableContestants) == 0 {
+				<div class="card bg-base-100 shadow p-8 text-center text-base-content/60">
+					No undrafted contestants remaining.
+				</div>
+			} else {
+				<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+					for _, c := range board.AvailableContestants {
+						@DraftAvailableContestantCard(c, board, currentUser)
+					}
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ DraftTeamCard(u models.User, position int, board models.DraftBoard) {
+	<div class={
+		"card bg-base-100 shadow border transition-all",
+		templ.KV("border-primary ring-1 ring-primary", isUserCurrentlyOnClock(u.ID, board)),
+		templ.KV("border-base-content/10", !isUserCurrentlyOnClock(u.ID, board)),
+	}>
+		<div class="card-body p-4 space-y-3">
+			<div class="flex items-center justify-between gap-2 pb-2 border-b border-base-200">
+				<div class="flex items-center gap-2.5 min-w-0">
+					<div class="avatar">
+						<div class="w-9 h-9 rounded-full ring-1 ring-primary/40 overflow-hidden bg-base-300">
+							<img
+								src={ fmt.Sprintf("/static/users/avatars/sm/%s.png", u.Slug) }
+								alt={ u.Name }
+								class="w-full h-full aspect-square object-cover object-top"/>
+						</div>
+					</div>
+					<div class="min-w-0">
+						<h3 class="font-bold text-sm truncate">{ u.Name }</h3>
+						<span class="text-[11px] text-base-content/60">Pick Slot #{ fmt.Sprint(position) }</span>
+					</div>
+				</div>
+				if isUserCurrentlyOnClock(u.ID, board) {
+					<span class="badge badge-primary badge-xs">Picking</span>
+				}
+			</div>
+
+			<!-- Drafted Roster List -->
+			<div class="space-y-2">
+				for r := 0; r < board.State.Rounds; r++ {
+					if r < len(board.DraftedByUser[u.ID]) {
+						<div class="flex items-center gap-2.5 bg-base-200/70 px-2.5 py-1.5 rounded-lg">
+							<div class="avatar">
+								<div class="w-8 h-8 rounded-full overflow-hidden bg-base-300">
+									<img
+										src={ board.DraftedByUser[u.ID][r].SmallImageURL() }
+										alt={ board.DraftedByUser[u.ID][r].Name }
+										class="w-full h-full aspect-square object-cover object-top"/>
+								</div>
+							</div>
+							<div class="min-w-0 flex-1">
+								<div class="text-xs font-bold truncate">{ board.DraftedByUser[u.ID][r].KnownBy }</div>
+								<div class="text-[11px] text-base-content/60 truncate">{ board.DraftedByUser[u.ID][r].Name }</div>
+							</div>
+						</div>
+					} else {
+						<div class="flex items-center gap-2.5 border border-dashed border-base-300 px-2.5 py-2 rounded-lg text-xs text-base-content/40">
+							<div class="w-7 h-7 rounded-full bg-base-200 flex items-center justify-center font-mono text-[10px]">
+								R{ fmt.Sprint(r + 1) }
+							</div>
+							<span>Open Slot</span>
+						</div>
+					}
+				}
+			</div>
+		</div>
+	</div>
+}
+
+templ DraftAvailableContestantCard(c models.Contestant, board models.DraftBoard, currentUser models.User) {
+	<div id={ "contestant-" + strconv.Itoa(c.ID) } class="card card-compact bg-base-100 shadow-md border border-base-content/10 overflow-hidden hover:border-primary/40 transition-all">
+		<figure class="w-full aspect-square bg-base-200 overflow-hidden">
+			<img src={ c.ImageURL } alt={ c.Name } class="w-full h-full aspect-square object-cover object-top"/>
+		</figure>
+		<div class="card-body items-center text-center p-3">
+			<h3 class="font-bold text-sm leading-tight">{ c.Name }</h3>
+			if c.KnownBy != "" && c.KnownBy != c.Name {
+				<p class="text-xs text-base-content/60">"{ c.KnownBy }"</p>
+			}
+
+			if board.CanUserPick(currentUser) {
+				<div class="card-actions w-full mt-2">
+					<button
+						type="button"
+						onclick={ openDraftConfirmModal(c.ID) }
+						class="btn btn-primary btn-sm w-full">
+						Draft { c.KnownBy }
+					</button>
+				</div>
+
+				<!-- Confirmation Modal -->
+				<dialog id={ fmt.Sprintf("confirm-draft-%d", c.ID) } class="modal modal-bottom sm:modal-middle">
+					<div class="modal-box text-left">
+						<h3 class="font-bold text-lg">Confirm Draft Pick</h3>
+						<div class="flex items-center gap-4 py-4">
+							<div class="avatar">
+								<div class="w-16 h-16 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2 overflow-hidden bg-base-300">
+									<img
+										src={ c.SmallImageURL() }
+										alt={ c.Name }
+										class="w-full h-full aspect-square object-cover object-top"/>
+								</div>
+							</div>
+							<div>
+								<div class="text-lg font-bold">{ c.Name }</div>
+								if onClock, ok := board.OnTheClock(); ok {
+									<div class="text-sm text-base-content/70">
+										Round { fmt.Sprint(board.CurrentRound()) } &bull; Pick #{ fmt.Sprint(board.State.CurrentPick) } { "for" } <strong class="text-primary">{ onClock.Name }</strong>
+									</div>
+									if currentUser.IsAdmin && currentUser.ID != onClock.ID {
+										<div class="badge badge-secondary badge-xs mt-1">Admin Proxy Pick</div>
+									}
+								}
+							</div>
+						</div>
+						<div class="modal-action">
+							<form method="dialog">
+								<button class="btn btn-ghost">Cancel</button>
+							</form>
+							<button
+								type="button"
+								hx-post={ "/draft/" + strconv.Itoa(c.ID) }
+								hx-target="#draft-board-container"
+								hx-swap="innerHTML"
+								class="btn btn-primary">
+								Confirm Pick
+							</button>
+						</div>
+					</div>
+					<form method="dialog" class="modal-backdrop">
+						<button>close</button>
+					</form>
+				</dialog>
+			}
+		</div>
+	</div>
+}
+
+func isUserCurrentlyOnClock(userID int, board models.DraftBoard) bool {
+	if board.State.Status == models.DraftStatusCompleted {
+		return false
+	}
+	onClock, ok := board.OnTheClock()
+	return ok && onClock.ID == userID
 }

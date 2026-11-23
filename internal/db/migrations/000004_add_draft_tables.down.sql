@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS draft_picks;
+DROP TABLE IF EXISTS draft_order;
+DROP TABLE IF EXISTS drafts;

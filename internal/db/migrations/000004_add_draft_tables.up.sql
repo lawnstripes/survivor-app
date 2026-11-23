@@ -1,0 +1,26 @@
+CREATE TABLE IF NOT EXISTS drafts (
+	season_id INTEGER PRIMARY KEY REFERENCES seasons(id) ON DELETE CASCADE,
+	status TEXT NOT NULL DEFAULT 'setup',
+	rounds INTEGER NOT NULL DEFAULT 3,
+	current_pick INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS draft_order (
+	season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	position INTEGER NOT NULL,
+	PRIMARY KEY (season_id, user_id),
+	UNIQUE (season_id, position)
+);
+
+CREATE TABLE IF NOT EXISTS draft_picks (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+	pick_number INTEGER NOT NULL,
+	round INTEGER NOT NULL,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	contestant_id INTEGER NOT NULL REFERENCES contestants(id) ON DELETE CASCADE,
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (season_id, pick_number),
+	UNIQUE (season_id, contestant_id)
+);

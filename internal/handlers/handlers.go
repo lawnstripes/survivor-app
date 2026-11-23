@@ -76,6 +76,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/reset-password", h.HandlePasswordResetPost)
 
 	r.Get("/draft", h.HandleDraftRoom)
+	r.Get("/draft/board", h.HandleDraftBoard)
 	r.Post("/draft/{id}", h.HandleDraftContestant)
 
 	r.Get("/events", h.Broker.Stream)
@@ -97,6 +98,15 @@ func (h *Handler) Routes() chi.Router {
 		r.Put("/admin/contestants/{id}", h.HandleAdminContestantUpdate)
 		r.Get("/admin/settings", h.HandleAdminSettingsGet)
 		r.Put("/admin/settings", h.HandleAdminSettingsUpdate)
+		r.Get("/admin/draft", h.HandleAdminDraftGet)
+		r.Post("/admin/draft/rounds", h.HandleAdminDraftRounds)
+		r.Post("/admin/draft/status", h.HandleAdminDraftStatus)
+		r.Post("/admin/draft/order/move", h.HandleAdminDraftOrderMove)
+		r.Post("/admin/draft/order/remove", h.HandleAdminDraftOrderRemove)
+		r.Post("/admin/draft/order/add", h.HandleAdminDraftOrderAdd)
+		r.Post("/admin/draft/order/randomize", h.HandleAdminDraftOrderRandomize)
+		r.Post("/admin/draft/undo", h.HandleAdminDraftUndo)
+		r.Post("/admin/draft/reset", h.HandleAdminDraftReset)
 	})
 
 	return r

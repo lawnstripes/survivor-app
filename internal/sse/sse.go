@@ -27,8 +27,8 @@ func (b *Broker) Stream(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("client connected")
 
-	// Create a new channel for this specific browser tab
-	messageChan := make(chan string)
+	// Create a new buffered channel for this specific browser tab
+	messageChan := make(chan string, 8)
 
 	b.mutex.Lock()
 	b.clients[messageChan] = true

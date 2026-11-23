@@ -6,6 +6,7 @@ import "fmt"
 templ AdminNav(currentPath string) {
 	<div class="tabs tabs-boxed mb-6">
 		<a class={ "tab", templ.KV("tab-active", currentPath == "/admin/seasons") } href="/admin/seasons" hx-get="/admin/seasons" hx-target="main" hx-push-url="true">Seasons</a>
+		<a class={ "tab", templ.KV("tab-active", currentPath == "/admin/draft") } href="/admin/draft" hx-get="/admin/draft" hx-target="main" hx-push-url="true">Draft</a>
 		<a class={ "tab", templ.KV("tab-active", currentPath == "/admin/settings") } href="/admin/settings" hx-get="/admin/settings" hx-target="main" hx-push-url="true">Settings</a>
 	</div>
 }
@@ -381,4 +382,351 @@ templ AdminContestantBulkForm(seasonID int) {
 			<button class="btn btn-secondary">Upload CSV</button>
 		</div>
 	</form>
+}
+
+func isUserInDraftOrder(userID int, order []models.User) bool {
+	for _, u := range order {
+		if u.ID == userID {
+			return true
+		}
+	}
+	return false
+}
+
+func totalContestantCount(board models.DraftBoard) int {
+	count := len(board.AvailableContestants)
+	for _, list := range board.DraftedByUser {
+		count += len(list)
+	}
+	return count
+}
+
+templ AdminDraft(board models.DraftBoard, allUsers []models.User, currentPath string) {
+	@AdminNav(currentPath)
+	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+		<div>
+			<h1 class="text-3xl font-bold">Manage Live Draft</h1>
+			<p class="text-base-content/70">Configure snake order, rounds, and live draft controls for { board.Season.Title } ({ board.Season.TitleLong }).</p>
+		</div>
+		<a href="/draft" class="btn btn-primary btn-sm self-start md:self-auto">
+			Open Live War Room &rarr;
+		</a>
+	</div>
+	<div id="admin-draft-panel">
+		@AdminDraftPanel(board, allUsers)
+	</div>
+}
+
+templ AdminDraftPanel(board models.DraftBoard, allUsers []models.User) {
+	<div class="space-y-8">
+		<!-- Top Status & Lifecycle Controls Card -->
+		<div class="card bg-base-100 shadow p-6">
+			<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+				<div class="space-y-2">
+					<div class="flex items-center gap-3">
+						<h2 class="text-xl font-bold">{ board.Season.Title } Draft Status</h2>
+						switch board.State.Status {
+							case models.DraftStatusLive:
+								<span class="badge badge-error animate-pulse font-bold">LIVE</span>
+							case models.DraftStatusPaused:
+								<span class="badge badge-warning font-bold">PAUSED</span>
+							case models.DraftStatusCompleted:
+								<span class="badge badge-success font-bold">COMPLETED</span>
+							default:
+								<span class="badge badge-neutral font-bold">SETUP</span>
+						}
+					</div>
+					<div class="text-sm text-base-content/70 flex flex-wrap gap-x-6 gap-y-1">
+						<span>Participants: <strong>{ fmt.Sprint(len(board.Order)) }</strong></span>
+						<span>Rounds: <strong>{ fmt.Sprint(board.State.Rounds) }</strong></span>
+						<span>Total Picks: <strong>{ fmt.Sprint(board.TotalPicks()) }</strong></span>
+						<span>Season Contestants: <strong>{ fmt.Sprint(totalContestantCount(board)) }</strong></span>
+						if totalContestantCount(board) >= board.TotalPicks() {
+							<span>Sit-Out Bench Remaining: <strong>{ fmt.Sprint(totalContestantCount(board) - board.TotalPicks()) }</strong></span>
+						} else {
+							<span class="text-error font-semibold">Warning: Total picks ({ fmt.Sprint(board.TotalPicks()) }) exceeds contestants ({ fmt.Sprint(totalContestantCount(board)) })!</span>
+						}
+					</div>
+					if onClock, ok := board.OnTheClock(); ok {
+						<div class="text-sm pt-1">
+							Round <strong>{ fmt.Sprint(board.CurrentRound()) }</strong> &bull; Pick <strong>{ fmt.Sprint(board.State.CurrentPick) }</strong> of <strong>{ fmt.Sprint(board.TotalPicks()) }</strong>
+							&mdash; On the Clock: <span class="badge badge-primary badge-outline font-semibold">{ onClock.Name }</span>
+						</div>
+					}
+				</div>
+
+				<!-- Lifecycle & Action Buttons -->
+				<div class="flex flex-wrap items-center gap-2">
+					if board.State.Status == models.DraftStatusSetup {
+						<button
+							hx-post="/admin/draft/status"
+							hx-vals='{"status":"live"}'
+							hx-target="#admin-draft-panel"
+							hx-swap="innerHTML"
+							disabled?={ len(board.Order) == 0 }
+							class="btn btn-success btn-sm">
+							Start Live Draft
+						</button>
+					}
+					if board.State.Status == models.DraftStatusLive {
+						<button
+							hx-post="/admin/draft/status"
+							hx-vals='{"status":"paused"}'
+							hx-target="#admin-draft-panel"
+							hx-swap="innerHTML"
+							class="btn btn-warning btn-sm">
+							Pause Draft
+						</button>
+						<button
+							hx-post="/admin/draft/status"
+							hx-vals='{"status":"completed"}'
+							hx-target="#admin-draft-panel"
+							hx-swap="innerHTML"
+							hx-confirm="Mark this draft as completed?"
+							class="btn btn-outline btn-sm">
+							Complete Draft
+						</button>
+					}
+					if board.State.Status == models.DraftStatusPaused {
+						<button
+							hx-post="/admin/draft/status"
+							hx-vals='{"status":"live"}'
+							hx-target="#admin-draft-panel"
+							hx-swap="innerHTML"
+							class="btn btn-success btn-sm">
+							Resume Live Draft
+						</button>
+						if len(board.Picks) == 0 {
+							<button
+								hx-post="/admin/draft/status"
+								hx-vals='{"status":"setup"}'
+								hx-target="#admin-draft-panel"
+								hx-swap="innerHTML"
+								class="btn btn-ghost btn-sm">
+								Return to Setup
+							</button>
+						}
+						<button
+							hx-post="/admin/draft/status"
+							hx-vals='{"status":"completed"}'
+							hx-target="#admin-draft-panel"
+							hx-swap="innerHTML"
+							hx-confirm="Mark this draft as completed?"
+							class="btn btn-outline btn-sm">
+							Complete Draft
+						</button>
+					}
+					if board.State.Status == models.DraftStatusCompleted {
+						<button
+							hx-post="/admin/draft/status"
+							hx-vals='{"status":"paused"}'
+							hx-target="#admin-draft-panel"
+							hx-swap="innerHTML"
+							class="btn btn-outline btn-sm">
+							Reopen (Paused)
+						</button>
+					}
+					if len(board.Picks) > 0 {
+						<button
+							hx-post="/admin/draft/undo"
+							hx-target="#admin-draft-panel"
+							hx-swap="innerHTML"
+							hx-confirm="Undo the last draft pick?"
+							class="btn btn-secondary btn-sm">
+							Undo Last Pick
+						</button>
+					}
+					<button
+						hx-post="/admin/draft/reset"
+						hx-target="#admin-draft-panel"
+						hx-swap="innerHTML"
+						hx-confirm="Reset the entire draft for this season? This will clear all picks and contestant owners for this season."
+						class="btn btn-error btn-outline btn-sm">
+						Reset Draft
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+			<!-- Left Column: Rounds Config & Participant Snake Order -->
+			<div class="space-y-6">
+				<div class="card bg-base-100 shadow p-6">
+					<h3 class="text-lg font-bold mb-4">Draft Settings</h3>
+					<form
+						hx-post="/admin/draft/rounds"
+						hx-target="#admin-draft-panel"
+						hx-swap="innerHTML"
+						class="flex items-end gap-3">
+						<div class="form-control flex-1">
+							<label class="label"><span class="label-text">Number of Rounds</span></label>
+							<input
+								type="number"
+								name="rounds"
+								min="1"
+								max="20"
+								value={ fmt.Sprint(board.State.Rounds) }
+								class="input input-bordered input-sm w-full"
+								required/>
+						</div>
+						<button type="submit" class="btn btn-primary btn-sm">Update Rounds</button>
+					</form>
+				</div>
+
+				<div class="card bg-base-100 shadow p-6">
+					<div class="flex items-center justify-between mb-4">
+						<div>
+							<h3 class="text-lg font-bold">Round 1 Pick Order</h3>
+							<p class="text-xs text-base-content/60">Round 2 reverses this order (Snake).</p>
+						</div>
+						<button
+							hx-post="/admin/draft/order/randomize"
+							hx-target="#admin-draft-panel"
+							hx-swap="innerHTML"
+							disabled?={ len(board.Picks) > 0 || len(board.Order) < 2 }
+							class="btn btn-secondary btn-xs">
+							🎲 Randomize
+						</button>
+					</div>
+
+					if len(board.Picks) > 0 {
+						<div class="alert alert-info text-xs py-2 mb-4">
+							<span>Pick order is locked while picks are on the board. Undo or reset picks to reorder.</span>
+						</div>
+					}
+
+					<div class="divide-y divide-base-200">
+						for i, u := range board.Order {
+							<div class="flex items-center justify-between py-2.5 gap-2">
+								<div class="flex items-center gap-3">
+									<span class="badge badge-neutral badge-sm font-mono">{ fmt.Sprint(i + 1) }</span>
+									<div class="avatar">
+										<div class="w-8 h-8 rounded-full overflow-hidden bg-base-300">
+											<img
+												src={ fmt.Sprintf("/static/users/avatars/sm/%s.png", u.Slug) }
+												alt={ u.Name }
+												class="w-full h-full aspect-square object-cover object-top"/>
+										</div>
+									</div>
+									<span class="font-medium">{ u.Name }</span>
+								</div>
+								<div class="join">
+									<button
+										hx-post="/admin/draft/order/move"
+										hx-vals={ fmt.Sprintf(`{"user_id":%d,"direction":"up"}`, u.ID) }
+										hx-target="#admin-draft-panel"
+										hx-swap="innerHTML"
+										disabled?={ i == 0 || len(board.Picks) > 0 }
+										class="btn btn-xs btn-ghost join-item"
+										title="Move Up">
+										&uarr;
+									</button>
+									<button
+										hx-post="/admin/draft/order/move"
+										hx-vals={ fmt.Sprintf(`{"user_id":%d,"direction":"down"}`, u.ID) }
+										hx-target="#admin-draft-panel"
+										hx-swap="innerHTML"
+										disabled?={ i == len(board.Order)-1 || len(board.Picks) > 0 }
+										class="btn btn-xs btn-ghost join-item"
+										title="Move Down">
+										&darr;
+									</button>
+									<button
+										hx-post="/admin/draft/order/remove"
+										hx-vals={ fmt.Sprintf(`{"user_id":%d}`, u.ID) }
+										hx-target="#admin-draft-panel"
+										hx-swap="innerHTML"
+										disabled?={ len(board.Picks) > 0 }
+										class="btn btn-xs btn-ghost text-error join-item"
+										title="Remove from Draft">
+										&times;
+									</button>
+								</div>
+							</div>
+						}
+					</div>
+
+					<!-- Excluded Users Section -->
+					<div class="mt-4 pt-4 border-t border-base-200">
+						<h4 class="text-xs font-semibold uppercase tracking-wider text-base-content/60 mb-2">Available Users to Add</h4>
+						<div class="flex flex-wrap gap-2">
+							for _, u := range allUsers {
+								if !isUserInDraftOrder(u.ID, board.Order) {
+									<button
+										hx-post="/admin/draft/order/add"
+										hx-vals={ fmt.Sprintf(`{"user_id":%d}`, u.ID) }
+										hx-target="#admin-draft-panel"
+										hx-swap="innerHTML"
+										disabled?={ len(board.Picks) > 0 }
+										class="btn btn-xs btn-outline">
+										+ { u.Name }
+									</button>
+								}
+							}
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Right 2 Columns: Full Snake Schedule & Pick Log -->
+			<div class="lg:col-span-2">
+				<div class="card bg-base-100 shadow p-6">
+					<h3 class="text-lg font-bold mb-4">Snake Schedule &amp; Pick History</h3>
+					<div class="overflow-x-auto max-h-[600px]">
+						<table class="table table-zebra table-sm w-full">
+							<thead>
+								<tr>
+									<th>Overall Pick</th>
+									<th>Round</th>
+									<th>Player</th>
+									<th>Selection</th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, slot := range board.Schedule() {
+									<tr class={ templ.KV("bg-primary/15 font-bold", slot.PickNumber == board.State.CurrentPick && board.State.Status != models.DraftStatusCompleted) }>
+										<td class="font-mono">#{ fmt.Sprint(slot.PickNumber) }</td>
+										<td>Round { fmt.Sprint(slot.Round) }.{ fmt.Sprint(slot.PickInRound) }</td>
+										<td>
+											<div class="flex items-center gap-2">
+												<div class="avatar">
+													<div class="w-6 h-6 rounded-full overflow-hidden bg-base-300">
+														<img
+															src={ fmt.Sprintf("/static/users/avatars/sm/%s.png", slot.User.Slug) }
+															alt={ slot.User.Name }
+															class="w-full h-full aspect-square object-cover object-top"/>
+													</div>
+												</div>
+												<span>{ slot.User.Name }</span>
+												if slot.PickNumber == board.State.CurrentPick && board.State.Status != models.DraftStatusCompleted {
+													<span class="badge badge-primary badge-xs">On the Clock</span>
+												}
+											</div>
+										</td>
+										<td>
+											if slot.Pick != nil {
+												<div class="flex items-center gap-2">
+													<div class="avatar">
+														<div class="w-6 h-6 rounded-full overflow-hidden bg-base-300">
+															<img
+																src={ slot.Pick.ContestantSmallImageURL() }
+																alt={ slot.Pick.ContestantName }
+																class="w-full h-full aspect-square object-cover object-top"/>
+														</div>
+													</div>
+													<span>{ slot.Pick.ContestantName } ({ slot.Pick.ContestantKnownBy })</span>
+												</div>
+											} else {
+												<span class="text-base-content/40 italic">&mdash;</span>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
 }

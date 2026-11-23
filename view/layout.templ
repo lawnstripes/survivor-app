@@ -52,7 +52,10 @@ templ Layout(title string, contents templ.Component, appData models.AppData, cur
             </div>
             <div class="navbar-end gap-4">
                 if appData.IsDraftActive {
-                    <a class="text-sm font-bold opacity-50" href="/draft">LIVE WAR ROOM</a>   
+                    <a class="btn btn-error btn-sm gap-2 animate-pulse" href="/draft">
+                        <span class="w-2 h-2 rounded-full bg-current"></span>
+                        LIVE WAR ROOM
+                    </a>
                 }
                 if currentUser.IsAdmin {
                     <a href="/admin/seasons" hx-get="/admin/seasons" hx-target="main" hx-push-url="true" class="btn btn-ghost btn-sm">Admin</a>

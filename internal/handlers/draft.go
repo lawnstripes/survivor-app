@@ -12,80 +12,104 @@ import (
 
 func (h *Handler) HandleDraftRoom(w http.ResponseWriter, r *http.Request) {
 	currentUser, ok := r.Context().Value(userKey).(models.User)
-
 	if !ok || currentUser.ID == 0 {
-		// Not authorized! Redirect to login.
 		w.Header().Set("HX-Redirect", "/login")
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
-	/* The rest of this needs to be implemented...
-	1. Handle actual user log
-	2. Add a draft season concept to the app to pick the correct season
-	3. Deal with logic for snake style draft
-	4. ... a lot
-	*/
-	_, err := h.Store.GetAllUsers()
+	board, err := h.Store.GetDraftBoard(h.AppData.CurrentSeason.ID)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	contestants, err := h.Store.GetContestantsBySeasonID(h.AppData.CurrentSeason.ID)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
+	draftComponent := view.DraftRoom(board, currentUser)
+	if r.Header.Get("HX-Request") == "true" {
+		draftComponent.Render(r.Context(), w)
 		return
 	}
 
-	draftComponent := view.DraftRoom(contestants)
+	view.Layout("Live War Room", draftComponent, *h.AppData, currentUser, r.URL.Path).Render(r.Context(), w)
+}
 
-	view.Layout("Draft Room", draftComponent, *h.AppData, currentUser, r.URL.Path).Render(r.Context(), w)
+func (h *Handler) HandleDraftBoard(w http.ResponseWriter, r *http.Request) {
+	currentUser, ok := r.Context().Value(userKey).(models.User)
+	if !ok || currentUser.ID == 0 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	board, err := h.Store.GetDraftBoard(h.AppData.CurrentSeason.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	view.DraftBoardView(board, currentUser).Render(r.Context(), w)
 }
 
 func (h *Handler) HandleDraftContestant(w http.ResponseWriter, r *http.Request) {
-	user, ok := r.Context().Value(userKey).(models.User)
+	currentUser, ok := r.Context().Value(userKey).(models.User)
+	if !ok || currentUser.ID == 0 {
+		http.Error(w, "You must be logged in to draft", http.StatusUnauthorized)
+		return
+	}
+
+	contestantID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "Invalid contestant ID", http.StatusBadRequest)
+		return
+	}
+
+	seasonID := h.AppData.CurrentSeason.ID
+	board, err := h.Store.GetDraftBoard(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if !board.CanUserPick(currentUser) {
+		http.Error(w, "It is not currently your turn to pick", http.StatusForbidden)
+		return
+	}
+
+	onClockUser, ok := board.OnTheClock()
 	if !ok {
-		http.Error(w, "You must select a user first!", http.StatusUnauthorized)
+		http.Error(w, "No active pick slot available", http.StatusConflict)
 		return
 	}
 
-	idStr := chi.URLParam(r, "id")
-	id, _ := strconv.Atoi(idStr)
-
-	// Get the contestant first to ensure they are not already drafted
-	c, err := h.Store.GetContestantByID(id)
+	updatedState, err := h.Store.MakeDraftPick(
+		seasonID,
+		board.State.CurrentPick,
+		board.CurrentRound(),
+		onClockUser.ID,
+		contestantID,
+		board.TotalPicks(),
+	)
 	if err != nil {
-		http.Error(w, "Contestant not found", http.StatusNotFound)
+		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
 
-	// Check if already owned
-	if c.OwnerID != nil {
-		http.Error(w, "Contestant already drafted", http.StatusConflict)
-		return
+	// If the final pick completed the draft, turn off IsDraftActive automatically
+	if updatedState.Status == models.DraftStatusCompleted && h.AppData.IsDraftActive {
+		if err := h.Store.UpdateAppSettings(seasonID, false); err == nil {
+			if newAppData, err := h.Store.GetAppData(); err == nil {
+				h.AppData = newAppData
+			}
+		}
 	}
 
-	// Assign owner and update
-	c.OwnerID = &user.ID
-	err = h.Store.UpdateContestant(&c)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
+	// Broadcast to all connected SSE clients so every browser updates immediately
 	h.Broker.Notify("update")
 
-	// Refetch to get the joined drafted_by name for the card
-	c, err = h.Store.GetContestantByID(id)
+	board, err = h.Store.GetDraftBoard(seasonID)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = view.ContestantCard(c).Render(r.Context(), w)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
+	view.DraftBoardView(board, currentUser).Render(r.Context(), w)
 }

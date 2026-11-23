@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -459,6 +460,305 @@ func (h *Handler) HandleAdminSettingsUpdate(w http.ResponseWriter, r *http.Reque
 	}
 	// Re-render the form to show the updated state
 	view.AdminSettingsForm(*h.AppData, seasons).Render(r.Context(), w)
+}
+
+func (h *Handler) renderAdminDraftPanel(w http.ResponseWriter, r *http.Request) {
+	seasonID := h.AppData.CurrentSeason.ID
+	board, err := h.Store.GetDraftBoard(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	allUsers, err := h.Store.GetAllUsersNonBench()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	view.AdminDraftPanel(board, allUsers).Render(r.Context(), w)
+}
+
+func (h *Handler) HandleAdminDraftGet(w http.ResponseWriter, r *http.Request) {
+	seasonID := h.AppData.CurrentSeason.ID
+	board, err := h.Store.GetDraftBoard(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	allUsers, err := h.Store.GetAllUsersNonBench()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	draftComponent := view.AdminDraft(board, allUsers, "/admin/draft")
+	if r.Header.Get("HX-Request") == "true" {
+		draftComponent.Render(r.Context(), w)
+		return
+	}
+
+	currentUser, _ := r.Context().Value(userKey).(models.User)
+	view.Layout("Admin: Manage Draft", draftComponent, *h.AppData, currentUser, r.URL.Path).Render(r.Context(), w)
+}
+
+func (h *Handler) HandleAdminDraftRounds(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	rounds, err := strconv.Atoi(r.FormValue("rounds"))
+	if err != nil || rounds < 1 || rounds > 20 {
+		http.Error(w, "Rounds must be between 1 and 20", http.StatusBadRequest)
+		return
+	}
+
+	seasonID := h.AppData.CurrentSeason.ID
+	state, err := h.Store.GetOrCreateDraftState(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	state.Rounds = rounds
+	if err := h.Store.UpdateDraftState(state); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.Broker.Notify("update")
+	h.renderAdminDraftPanel(w, r)
+}
+
+func (h *Handler) HandleAdminDraftStatus(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	newStatus := r.FormValue("status")
+	switch newStatus {
+	case models.DraftStatusSetup, models.DraftStatusLive, models.DraftStatusPaused, models.DraftStatusCompleted:
+	default:
+		http.Error(w, "Invalid draft status", http.StatusBadRequest)
+		return
+	}
+
+	seasonID := h.AppData.CurrentSeason.ID
+	state, err := h.Store.GetOrCreateDraftState(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	state.Status = newStatus
+	if err := h.Store.UpdateDraftState(state); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Keep AppData.IsDraftActive synchronized with live/paused draft state
+	draftActive := newStatus == models.DraftStatusLive || newStatus == models.DraftStatusPaused
+	if err := h.Store.UpdateAppSettings(seasonID, draftActive); err == nil {
+		if newAppData, err := h.Store.GetAppData(); err == nil {
+			h.AppData = newAppData
+		}
+	}
+
+	h.Broker.Notify("update")
+	if r.FormValue("source") == "warroom" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	h.renderAdminDraftPanel(w, r)
+}
+
+func (h *Handler) HandleAdminDraftOrderMove(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := strconv.Atoi(r.FormValue("user_id"))
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+	direction := r.FormValue("direction")
+
+	seasonID := h.AppData.CurrentSeason.ID
+	order, err := h.Store.GetDraftOrder(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	ids := make([]int, len(order))
+	idx := -1
+	for i, u := range order {
+		ids[i] = u.ID
+		if u.ID == userID {
+			idx = i
+		}
+	}
+
+	if idx != -1 {
+		if direction == "up" && idx > 0 {
+			ids[idx], ids[idx-1] = ids[idx-1], ids[idx]
+			_ = h.Store.SaveDraftOrder(seasonID, ids)
+		} else if direction == "down" && idx < len(ids)-1 {
+			ids[idx], ids[idx+1] = ids[idx+1], ids[idx]
+			_ = h.Store.SaveDraftOrder(seasonID, ids)
+		}
+	}
+
+	h.Broker.Notify("update")
+	h.renderAdminDraftPanel(w, r)
+}
+
+func (h *Handler) HandleAdminDraftOrderRemove(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := strconv.Atoi(r.FormValue("user_id"))
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	seasonID := h.AppData.CurrentSeason.ID
+	order, err := h.Store.GetDraftOrder(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	ids := make([]int, 0, len(order))
+	for _, u := range order {
+		if u.ID != userID {
+			ids = append(ids, u.ID)
+		}
+	}
+
+	if err := h.Store.SaveDraftOrder(seasonID, ids); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.Broker.Notify("update")
+	h.renderAdminDraftPanel(w, r)
+}
+
+func (h *Handler) HandleAdminDraftOrderAdd(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := strconv.Atoi(r.FormValue("user_id"))
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	seasonID := h.AppData.CurrentSeason.ID
+	order, err := h.Store.GetDraftOrder(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	ids := make([]int, 0, len(order)+1)
+	exists := false
+	for _, u := range order {
+		ids = append(ids, u.ID)
+		if u.ID == userID {
+			exists = true
+		}
+	}
+	if !exists {
+		ids = append(ids, userID)
+		if err := h.Store.SaveDraftOrder(seasonID, ids); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	h.Broker.Notify("update")
+	h.renderAdminDraftPanel(w, r)
+}
+
+func (h *Handler) HandleAdminDraftOrderRandomize(w http.ResponseWriter, r *http.Request) {
+	seasonID := h.AppData.CurrentSeason.ID
+	order, err := h.Store.GetDraftOrder(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	ids := make([]int, len(order))
+	for i, u := range order {
+		ids[i] = u.ID
+	}
+
+	rand.Shuffle(len(ids), func(i, j int) {
+		ids[i], ids[j] = ids[j], ids[i]
+	})
+
+	if err := h.Store.SaveDraftOrder(seasonID, ids); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.Broker.Notify("update")
+	h.renderAdminDraftPanel(w, r)
+}
+
+func (h *Handler) HandleAdminDraftUndo(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	seasonID := h.AppData.CurrentSeason.ID
+	state, err := h.Store.UndoLastDraftPick(seasonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// If undoing reopened a completed draft, re-enable draft_active
+	if state.Status == models.DraftStatusLive && !h.AppData.IsDraftActive {
+		if err := h.Store.UpdateAppSettings(seasonID, true); err == nil {
+			if newAppData, err := h.Store.GetAppData(); err == nil {
+				h.AppData = newAppData
+			}
+		}
+	}
+
+	h.Broker.Notify("update")
+	if r.FormValue("source") == "warroom" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	h.renderAdminDraftPanel(w, r)
+}
+
+func (h *Handler) HandleAdminDraftReset(w http.ResponseWriter, r *http.Request) {
+	seasonID := h.AppData.CurrentSeason.ID
+	if err := h.Store.ResetDraft(seasonID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.Store.UpdateAppSettings(seasonID, false); err == nil {
+		if newAppData, err := h.Store.GetAppData(); err == nil {
+			h.AppData = newAppData
+		}
+	}
+
+	h.Broker.Notify("update")
+	h.renderAdminDraftPanel(w, r)
 }
 
 func ptrAtoi(s string) *int {

@@ -35,14 +35,20 @@ func (h *Handler) HandleLoginPost(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.Store.GetUserBySlug(slug)
 	if err != nil || user.PasswordHash == nil {
-		component := view.LoginWithErrors("Invalid credentials")
-		component.Render(r.Context(), w)
-		return
+		user, err = h.Store.GetUserByEmail(slug)
+		if err != nil || user.PasswordHash == nil {
+			component := view.LoginWithErrors("Invalid credentials")
+			log.Print("user not found")
+			component.Render(r.Context(), w)
+			return
+		}
 	}
+
 	err = bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password))
 	if err != nil {
 		// Password does not match
 		component := view.LoginWithErrors("Invalid credentials")
+		log.Print("password mismatch")
 		component.Render(r.Context(), w)
 		return
 	}
